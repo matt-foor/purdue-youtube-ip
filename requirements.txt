@@ -1,0 +1,14 @@
+bertopic
+google-api-python-client
+matplotlib
+numpy
+openai
+pandas
+plotly
+pytrends
+python-dotenv
+requests
+scikit-learn
+streamlit
+tqdm
+pytest

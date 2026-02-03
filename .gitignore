@@ -1,0 +1,33 @@
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# Data and outputs
+data/raw/
+data/processed/
+outputs/figures/
+outputs/logs/
+outputs/models/
+outputs/reports/
+
+# Local configs
+config/*.local.yaml
