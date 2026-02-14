@@ -97,3 +97,24 @@ See `CONTRIBUTING.md` for standards and workflow.
 
 ## License
 MIT License. See `LICENSE`.
+## Thumbnail Dashboard (Deployable)
+A Streamlit dashboard is available at `dashboard/app.py` with:
+- **Thumbnail Generator** page (Gemini + OpenAI providers)
+- **Dataset Overview** page for `data/youtube api data/research_science_channels_videos.csv`
+
+### Required Env Vars
+- `GEMINI_API_KEY` for Gemini image generation
+- `OPENAI_API_KEY` for OpenAI image generation (optional fallback)
+
+Use `.env.example` as a template.
+
+### Run Dashboard
+```bash
+source .venv/bin/activate
+streamlit run dashboard/app.py
+```
+
+### Deploy on Streamlit Cloud
+1. Push repo to GitHub.
+2. Create app with entrypoint: `dashboard/app.py`.
+3. Add secrets in Streamlit: `GEMINI_API_KEY`, `OPENAI_API_KEY`.
