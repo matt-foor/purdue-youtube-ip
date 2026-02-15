@@ -118,3 +118,64 @@ streamlit run dashboard/app.py
 1. Push repo to GitHub.
 2. Create app with entrypoint: `dashboard/app.py`.
 3. Add secrets in Streamlit: `GEMINI_API_KEY`, `OPENAI_API_KEY`.
+
+## Creator Suite V2 (Current App)
+The app now includes a full creator operating system experience with modular tools, API-backed analytics, and AI generation workflows.
+
+### Core V2 Features
+- **Website-style App Shell:** custom theme, polished home page, and modular navigation.
+- **Extension Framework:** enable/disable modules from the in-app Extension Center (`config/extensions.json`).
+- **Ytuber (Advanced Suite):**
+  - Cache-aware channel loading (dataset-first, API fallback)
+  - Last-1-year channel intelligence and KPI dashboards
+  - Channel audit (consistency, growth, outlier rate, shorts mix)
+  - Keyword intelligence and opportunity scoring
+  - Title/description SEO scoring
+  - Title A/B lab with automated scoring
+  - Competitor benchmarking and content gap finder
+  - Trend radar + Google Trends + optional News signals
+  - Comment intelligence and sentiment signals
+  - Transcript lab and AI retention/script improvement
+  - Content planner (best day/hour + 4-week calendar)
+  - Thumbnail critic (image diagnostics + Gemini visual critique)
+  - Brand kit memory (tone, audience, visual style, banned words)
+  - AI Studio for titles, descriptions, scripts, hooks, and thumbnails
+- **Recommendations Page:** data-driven content guidance + thumbnail generation workflows.
+- **Channel Analysis Page:** filtered analytics, top videos/channels, and publishing performance insights.
+
+### Updated Environment Variables
+Use `.env.example` and include what you need:
+- `YOUTUBE_API_KEY` (required for live YouTube sync in Ytuber)
+- `GEMINI_API_KEY` (required for Gemini generation workflows)
+- `OPENAI_API_KEY` (optional fallback for image generation)
+- `NEWSAPI_KEY` (optional for News signal feed in Trend APIs)
+
+### How To Use (Suggested Workflow)
+1. Open **Home** for suite overview.
+2. Go to **Ytuber** and load a channel using `YOUTUBE_API_KEY`.
+3. In **Keyword Intel** and **Title & SEO Lab**, identify target terms and optimize metadata.
+4. Use **Content Gap Finder** + **Competitor Benchmark** to identify growth opportunities.
+5. In **AI Studio**, generate titles/descriptions/scripts/thumbnails aligned to your Brand Kit.
+6. Use **Content Planner** to schedule your next 4 weeks.
+7. Use **Extension Center** to toggle tools based on your workflow.
+
+### Local Run (Recommended)
+```bash
+cd "/Users/ayushkumar/Desktop/Youtube-IP"
+source .venv/bin/activate
+python3 -m streamlit run dashboard/app.py
+```
+
+### Streamlit Cloud Deploy (Private Repo Supported)
+1. Create/select app in Streamlit Cloud.
+2. Repo: your private GitHub repository.
+3. Branch: `main`.
+4. Main file path: `dashboard/app.py`.
+5. Add required secrets (`YOUTUBE_API_KEY`, `GEMINI_API_KEY`, etc.).
+6. Deploy or Reboot app.
+
+### Troubleshooting
+- **`ModuleNotFoundError`**: confirm dependencies in `requirements.txt` and reboot deployment.
+- **Repository not found on Streamlit**: reconnect GitHub access and grant repo permissions.
+- **No live data**: verify `YOUTUBE_API_KEY` and quota in Google Cloud.
+- **AI generation fails**: verify Gemini/OpenAI key and selected model name.
