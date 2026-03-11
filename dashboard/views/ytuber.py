@@ -1320,6 +1320,13 @@ def _render_score_parts(parts: Dict[str, int]) -> None:
             )
 
 
+def _queue_ai_studio_prefill(task: str, brief: str) -> None:
+    st.session_state["ytuber_ai_task_pending"] = task
+    st.session_state["ytuber_ai_brief_pending"] = brief
+    st.session_state["ytuber_ai_notice"] = f"AI Studio is prefilled for {task.lower()}. Open the AI Studio tab."
+    st.rerun()
+
+
 def _compute_channel_audit(df: pd.DataFrame) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     ordered = df.sort_values("video_publishedAt").copy()
@@ -1707,20 +1714,18 @@ def _render_title_seo_lab(keyword_hints: List[str]) -> None:
     action_cols = st.columns([1.2, 1.2, 1.6])
     with action_cols[0]:
         if st.button("Prepare Better Titles In AI Studio", use_container_width=True, key="ytuber_title_to_ai"):
-            st.session_state["ytuber_ai_task"] = "Titles Only"
-            st.session_state["ytuber_creative_brief"] = (
+            _queue_ai_studio_prefill(
+                "Titles Only",
                 f"Improve this title direction for stronger CTR and search intent: {test_title}. "
-                f"Description context: {test_desc[:400]}"
+                f"Description context: {test_desc[:400]}",
             )
-            st.success("AI Studio is prefilled for title generation. Open the AI Studio tab.")
     with action_cols[1]:
         if st.button("Prepare Video Ideas In AI Studio", use_container_width=True, key="ytuber_ideas_to_ai"):
-            st.session_state["ytuber_ai_task"] = "Video Ideas"
-            st.session_state["ytuber_creative_brief"] = (
+            _queue_ai_studio_prefill(
+                "Video Ideas",
                 f"Use this as the seed concept and expand into new video ideas: {test_title}. "
-                f"Description context: {test_desc[:400]}"
+                f"Description context: {test_desc[:400]}",
             )
-            st.success("AI Studio is prefilled for video ideation. Open the AI Studio tab.")
     with action_cols[2]:
         st.markdown(
             "<div style='font-size:12px;color:#AEB8D6;padding-top:0.5rem;'>Use AI Studio when the title direction is weak, the channel needs alternate angles, or you want batch ideas from the same concept.</div>",
@@ -2121,12 +2126,23 @@ def _render_ai_studio(
 ) -> None:
     section_header("AI Studio", icon="🤖")
 
+    pending_task = st.session_state.pop("ytuber_ai_task_pending", None)
+    if pending_task in AI_STUDIO_TASKS:
+        st.session_state["ytuber_ai_task"] = pending_task
+
+    pending_brief = st.session_state.pop("ytuber_ai_brief_pending", None)
+    if pending_brief is not None:
+        st.session_state["ytuber_creative_brief"] = pending_brief
+
     available_text_providers = [
         provider for provider in ["gemini", "openai"] if get_provider_key_count(provider) > 0
     ]
     available_image_providers = available_text_providers[:]
 
     st.caption("Choose the model mix, output counts, and creative filters before generating text or thumbnails.")
+    notice = st.session_state.pop("ytuber_ai_notice", None)
+    if notice:
+        st.success(notice)
 
     if not available_text_providers and not available_image_providers:
         st.info("Add `GEMINI_API_KEYS` and/or `OPENAI_API_KEYS` in secrets to unlock AI Studio.")
@@ -2565,6 +2581,9 @@ def render() -> None:
         st.session_state["ytuber_source"] = source
         st.session_state.pop("ytuber_keyword_hints", None)
         st.session_state.pop("ytuber_creative_brief", None)
+        st.session_state.pop("ytuber_ai_task_pending", None)
+        st.session_state.pop("ytuber_ai_brief_pending", None)
+        st.session_state.pop("ytuber_ai_notice", None)
 
     if "ytuber_channel_df" not in st.session_state:
         st.markdown(
