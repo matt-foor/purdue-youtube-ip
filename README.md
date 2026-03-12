@@ -1,274 +1,623 @@
-# Purdue YouTube Intelligence Platform
+# YouTube IP V3
 
-An end-to-end analytics and recommendation system that leverages public YouTube metadata and LLMs to help creators plan high-impact content strategies.
+YouTube IP V3 is a Streamlit application for YouTube research, benchmarking, live channel analysis, outlier discovery, and AI-assisted planning. It combines bundled CSV datasets with live YouTube Data API requests and optional Gemini/OpenAI generation so one app can cover historical benchmarking, channel diagnostics, idea research, and creative asset prototyping.
 
-## Overview
-Small-to-mid-tier creators often lack cross-channel intelligence and actionable insights. This project fills that gap by combining scalable public data collection with modern NLP and LLM-assisted recommendations to deliver channel-specific strategy guidance.
+Live app:
 
-## Project Brief
-The full business context, goals, scope, deliverables, and schedule live in `docs/PROJECT_BRIEF.md`.
+- https://youtube-ip-v3.streamlit.app/
 
-## Solution Summary
-- **Collect** public channel/video metadata and captions
-- **Process** and clean data for analysis
-- **Model** topics and patterns that correlate with engagement
-- **Recommend** titles, topics, thumbnails, and posting strategy
-- **Deliver** results via a premium, dark-mode Streamlit dashboard for stakeholders and creators
+This README documents the current deployed app as it exists in this repository, including:
 
-## Tech Stack
-- **Python 3.10+** for data collection, processing, and modeling
-- **YouTube Data API v3** for public metadata
-- **BERTopic** for topic modeling and semantic patterns
-- **Gemini API** for image and text generation (titles, scripts, thumbnails)
-- **OpenAI API (GPT + Images)** for optional/fallback text and thumbnail generation
-- **Streamlit** for interactive insights delivery with a custom dark theme
+- what the product does
+- which files power each feature
+- how the app is wired together
+- what data sources and API keys it uses
+- how to run it locally
+- how to deploy it on Streamlit Community Cloud
+- what parts of the repo are active versus legacy scaffolding
 
-## System Architecture
-See `docs/ARCHITECTURE.md` for the component map and data flow.
+## Product Overview
 
-## Data Sources
-- **YouTube Data API v3:** titles, tags, views, likes, comments, channel data
-- **Public captions:** NLP inputs for semantic modeling
-- **Google Trends (optional):** external signal for topic validation
+The app currently exposes five sidebar destinations:
 
-## Repository Structure
+| Page | Purpose | Main File |
+| --- | --- | --- |
+| `Channel Analysis` | Portfolio-level analytics across the bundled datasets | `dashboard/views/channel_analysis.py` |
+| `Recommendations` | Dataset-backed publishing guidance and thumbnail generation | `dashboard/views/recommendations.py` |
+| `Ytuber` | Live creator workspace for one channel at a time | `dashboard/views/ytuber.py` |
+| `Outlier Finder` | Standalone niche research and outlier-video discovery | `dashboard/views/outlier_finder.py` |
+| `Deployment` | Run/deploy notes shown inside the app | `dashboard/app.py` |
+
+At a high level, the app is designed for three use cases:
+
+1. Analyze existing cross-channel datasets to understand benchmark patterns.
+2. Pull live stats for a public channel and turn them into creator-focused diagnostics.
+3. Generate strategy and creative suggestions with Gemini or OpenAI using the same public data.
+
+## What The App Includes
+
+### 1. Channel Analysis
+
+`Channel Analysis` is the dataset-backed analytics view.
+
+It can:
+
+- load one category dataset or all committed datasets together
+- filter by channel and published-date range
+- show KPI summaries for videos, channels, views, average views, and median engagement
+- surface top channels by total views
+- chart monthly upload trends
+- list best-performing videos
+- compare publishing-day performance
+- visualize views versus engagement
+
+Code:
+
+- `dashboard/views/channel_analysis.py`
+- `dashboard/components/visualizations.py`
+
+Data source:
+
+- committed CSV files in `data/youtube api data/`
+
+### 2. Recommendations
+
+`Recommendations` turns the same bundled datasets into lightweight strategy guidance.
+
+It can:
+
+- benchmark a selected category or all categories
+- compute a high-performing sample from the top quartile of videos
+- suggest publish timing and title length targets
+- extract keyword angles from strong titles
+- show reference videos to model
+- generate thumbnail concepts with Gemini or OpenAI
+
+Code:
+
+- `dashboard/views/recommendations.py`
+- `src/llm_integration/thumbnail_generator.py`
+
+### 3. Ytuber
+
+`Ytuber` is the live creator workspace for one public channel.
+
+It can:
+
+- resolve a handle, channel name, or channel ID
+- pull fresh channel and recent-video metadata from the YouTube Data API
+- cache channel fetches in the local CSV-backed dataset
+- compute a channel overview and audit
+- generate keyword intelligence from recent uploads
+- score titles and descriptions in `Title And SEO Lab`
+- benchmark competitors and generate comparative recommendations
+- plan content around day/hour performance patterns
+- run `AI Studio` for titles, ideas, scripts, clips, and thumbnail generation
+- hand off into the standalone `Outlier Finder`
+
+Key modules inside the page:
+
+- `AI Studio`
+- `Overview`
+- `Channel Audit`
+- `Keyword Intel`
+- `Outliers Finder` shortcut
+- `Title And SEO Lab`
+- `Competitor Benchmark`
+- `Content Planner`
+
+Code:
+
+- `dashboard/views/ytuber.py`
+- `src/utils/api_keys.py`
+- `src/llm_integration/thumbnail_generator.py`
+
+### 4. Outlier Finder
+
+`Outlier Finder` is a standalone niche-research page in the sidebar. It is designed to find videos that are overperforming relative to channel size, age, peers, or channel baseline within the scanned cohort returned by the official YouTube API.
+
+It supports:
+
+- niche / keyword search
+- timeframe filters
+- region and language filters
+- language strictness
+- duration preference
+- minimum views
+- subscriber bucket and explicit min/max subscriber filters
+- include/exclude hidden subscriber counts
+- exact-phrase versus broad matching
+- exclude keywords
+- bounded search depth and baseline-enrichment settings
+
+Its results-first workflow is:
+
+1. `Top Outliers In This Scan`
+2. `Breakout Snapshot`
+3. `AI Research`
+4. `How This Works`
+
+The page also includes:
+
+- sortable outlier results
+- explanation strings for why each video is an outlier
+- score and scan summary cards
+- breakout charts for age, duration, title pattern, and language quality
+- structured AI report cards via Gemini/OpenAI
+- an inline methodology section explaining metrics and caveats
+
+Code:
+
+- `dashboard/views/outlier_finder.py`
+- `src/services/outliers_finder.py`
+- `src/services/outlier_ai.py`
+
+## Current Runtime Architecture
+
+### App Entrypoints
+
+There are two Streamlit entrypoints:
+
+- `streamlit_app.py`
+  - root deployment entrypoint used by Streamlit Cloud
+  - simply imports `dashboard.app`
+- `dashboard/app.py`
+  - real application shell
+  - configures Streamlit page settings
+  - injects the shared theme
+  - renders the sidebar
+  - routes to each page
+
+### Shared UI Layer
+
+- `dashboard/components/sidebar.py`
+  - branded sidebar navigation using `streamlit-option-menu`
+- `dashboard/components/theme.py`
+  - shared app theme, CSS tokens, page widths, button styling, and general chrome
+- `dashboard/components/visualizations.py`
+  - reusable Plotly chart helpers, dataframe styling, keyword chips, KPI rows, and section headers
+
+### Active Service Layer
+
+The current active backend logic is concentrated in a small number of files:
+
+- `src/utils/api_keys.py`
+  - reads API keys from environment variables and Streamlit secrets
+  - supports single-key and pooled-key modes
+  - rotates keys per provider in session state
+  - retries operations across configured keys
+
+- `src/services/outliers_finder.py`
+  - core outlier-search request and scoring engine
+  - YouTube API orchestration for search, videos, channels, and baseline fetches
+  - language confidence heuristics
+  - duration and age bucketing
+  - peer percentile and baseline-based scoring
+  - cache wrappers for niche scans and channel baselines
+
+- `src/services/outlier_ai.py`
+  - converts outlier results into structured AI research cards
+  - calls Gemini or OpenAI
+  - expects JSON output and falls back gracefully if parsing fails
+
+- `src/llm_integration/thumbnail_generator.py`
+  - Gemini and OpenAI image-generation wrapper
+  - used by the Recommendations page and `Ytuber -> AI Studio`
+
+### Data Flow
+
+There are two main data flows in the app:
+
+#### A. Dataset-backed analytics
+
+```text
+Bundled CSV datasets
+-> pandas loading/cleaning in page views
+-> dashboard/components/visualizations.py
+-> Channel Analysis / Recommendations UI
 ```
+
+#### B. Live API-backed creator workflows
+
+```text
+Streamlit secrets / env vars
+-> src/utils/api_keys.py
+-> YouTube API or Gemini/OpenAI calls
+-> page-specific transformations in Ytuber / Outlier Finder
+-> charts, result cards, and AI panels in the Streamlit UI
+```
+
+## Repository Map
+
+This is the practical repository layout, not just the nominal one:
+
+```text
 .
-├── config/                 # Project configuration
-├── dashboard/              # Streamlit app and UI components
-├── data/                   # Raw and processed data (gitignored)
-├── docs/                   # Architecture and project brief
-├── notebooks/              # Exploration, modeling, and reporting notebooks
-├── outputs/                # Figures, reports, and models (gitignored)
-├── src/                    # Core Python package
-│   ├── data_collection/    # API clients and scrapers
-│   ├── data_processing/    # Cleaning and feature engineering
-│   ├── llm_integration/    # GPT-4 integration
-│   ├── modeling/           # BERTopic and modeling logic
-│   └── utils/              # Helpers and logging
-└── tests/                  # Unit and integration tests
+├── dashboard/
+│   ├── app.py                       # Main Streamlit router
+│   ├── components/
+│   │   ├── sidebar.py               # Sidebar navigation
+│   │   ├── theme.py                 # Shared dark/purple theme
+│   │   └── visualizations.py        # Plotly + dataframe helpers
+│   └── views/
+│       ├── channel_analysis.py      # Dataset analytics page
+│       ├── recommendations.py       # Recommendations + thumbnail studio
+│       ├── ytuber.py                # Live creator workspace
+│       └── outlier_finder.py        # Standalone niche research page
+├── data/
+│   └── youtube api data/            # Bundled CSV datasets used by the app
+├── docs/
+│   ├── ARCHITECTURE.md              # Original architecture note
+│   └── PROJECT_BRIEF.md             # Original project brief
+├── outputs/
+│   └── thumbnails/                  # Generated image outputs
+├── scripts/
+│   ├── yt_api_smoketest.py          # Rich YouTube API smoke test
+│   ├── build_*_dataset.py           # Dataset builder scripts
+│   └── available_data_constraints.md
+├── src/
+│   ├── services/                    # Active outlier + AI service layer
+│   ├── utils/                       # API-key management and helpers
+│   ├── llm_integration/             # Thumbnail generation wrapper
+│   ├── data_collection/             # Mostly legacy / empty scaffolding
+│   ├── data_processing/             # Partial older scaffolding
+│   └── modeling/                    # Partial older scaffolding
+├── tests/
+│   ├── integration/                 # Integration tests
+│   └── unit/                        # Unit tests
+├── streamlit_app.py                 # Root Streamlit Cloud entrypoint
+├── requirements.txt                 # Python dependencies
+└── .streamlit/config.toml           # Theme config
 ```
 
-## Getting Started
+## What Is Active Versus Historical Scaffolding
+
+This repo has evolved over time. The currently deployed app does **not** use every folder equally.
+
+### Actively used by the app today
+
+- `dashboard/`
+- `src/services/`
+- `src/utils/api_keys.py`
+- `src/llm_integration/thumbnail_generator.py`
+- `data/youtube api data/`
+- `tests/unit/test_outliers_finder.py`
+- `tests/unit/test_outlier_ai.py`
+- `tests/integration/test_pipeline.py`
+
+### Present in the repo but only partially used or currently inactive
+
+- `src/data_collection/`
+- `src/modeling/`
+- `src/llm_integration/content_generator.py`
+- `src/llm_integration/gpt4_client.py`
+- parts of `src/data_processing/`
+
+Several of these files are empty or legacy placeholders from the original research-project structure. The README reflects the code that powers the live app today, not every historical idea in the repo.
+
+## Bundled Data Assets
+
+The repository currently ships with four CSV datasets under `data/youtube api data/`.
+
+| Dataset | Rows | Columns |
+| --- | ---: | ---: |
+| `entertainment_channels_videos.csv` | 101,554 | 54 |
+| `gaming_channels_videos.csv` | 95,534 | 54 |
+| `research_science_channels_videos.csv` | 221,325 | 54 |
+| `tech_channels_videos.csv` | 125,693 | 54 |
+
+Total bundled rows: **544,106**
+
+These datasets power:
+
+- `Channel Analysis`
+- the dataset-backed parts of `Recommendations`
+- parts of the `Ytuber` page when appending live fetches into the working CSV-backed flow
+
+## Secrets, Environment Variables, And API-Key Pools
+
+The app supports both single keys and pooled keys.
+
+Supported provider groups:
+
+- `youtube`
+- `gemini`
+- `openai`
+
+### Preferred pooled-key format
+
+Environment variables:
+
+```bash
+YOUTUBE_API_KEYS=key_1,key_2
+GEMINI_API_KEYS=key_1,key_2
+OPENAI_API_KEYS=key_1,key_2
+```
+
+Streamlit secrets:
+
+```toml
+YOUTUBE_API_KEYS = ["key_1", "key_2"]
+GEMINI_API_KEYS = ["key_1", "key_2"]
+OPENAI_API_KEYS = ["key_1", "key_2"]
+```
+
+### Supported single-key fallbacks
+
+- `YOUTUBE_API_KEY`
+- `GEMINI_API_KEY`
+- `OPENAI_API_KEY`
+
+### How key rotation works
+
+`src/utils/api_keys.py` does the following:
+
+- reads values from Streamlit secrets first, then environment variables
+- accepts JSON-style lists, comma-separated strings, line-delimited strings, or indexed secret names
+- deduplicates the final list
+- stores a session-level cursor for each provider
+- retries operations across all configured keys when failures are retryable
+
+This matters most for:
+
+- live YouTube fetches in `Ytuber`
+- outlier scans in `Outlier Finder`
+- Gemini/OpenAI generation in `AI Studio`, `Recommendations`, and Outlier AI reports
+
+## Local Development
 
 ### Prerequisites
-- Python 3.10+
-- YouTube Data API key
-- Gemini API key
-- OpenAI API key (optional but recommended)
 
-### Setup (local)
+- Python 3.10 or newer
+- valid YouTube Data API credentials for live features
+- Gemini and/or OpenAI credentials for AI features
+
+### Install
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Environment Variables
-Copy and edit:
+### Configure local secrets
+
+Copy:
+
 ```bash
 cp .env.example .env
 ```
-Then populate with your credentials (do not commit `.env`).
 
-Required keys:
-- `YOUTUBE_API_KEY` – YouTube Data API v3
-- `GEMINI_API_KEY` – Gemini text + image
-- `OPENAI_API_KEY` – OpenAI GPT + images (optional)
+Then populate:
 
-### Run the Dashboard (local)
+- `YOUTUBE_API_KEYS`
+- `GEMINI_API_KEYS`
+- `OPENAI_API_KEYS`
+
+Example:
+
+```bash
+YOUTUBE_API_KEYS=your_youtube_key_1,your_youtube_key_2
+GEMINI_API_KEYS=your_gemini_key_1,your_gemini_key_2
+OPENAI_API_KEYS=your_openai_key_1,your_openai_key_2
+```
+
+Local Streamlit-style secrets are also supported via `.streamlit/secrets.toml`.
+
+Reference file:
+
+- `.streamlit/secrets.toml.example`
+
+### Run the app
+
+Preferred:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Alternate:
+
 ```bash
 streamlit run dashboard/app.py
 ```
 
-### Run Tests
-```bash
-pytest
+## Streamlit Community Cloud Deployment
+
+This repo is structured to deploy directly from GitHub to Streamlit Community Cloud.
+
+Current deployed app:
+
+- https://youtube-ip-v3.streamlit.app/
+
+### Streamlit app settings
+
+- Repo: `royayushkr/Youtube-IP-V3`
+- Branch: `main`
+- Main file path: `streamlit_app.py`
+
+### Required secrets
+
+```toml
+YOUTUBE_API_KEYS = ["your_youtube_key_1", "your_youtube_key_2"]
+GEMINI_API_KEYS = ["your_gemini_key_1", "your_gemini_key_2"]
+OPENAI_API_KEYS = ["your_openai_key_1", "your_openai_key_2"]
 ```
 
-## Configuration
-Project-level configuration lives in `config/config.yaml`. Logging is configured in `config/logging_config.yaml`.
+Single-key fallbacks still work if needed.
 
-The Streamlit UI theme is configured in:
-- `.streamlit/config.toml` – dark theme colors for the entire app.
+### Theme
 
-Key frontend dependencies:
-- `plotly` and `altair` for interactive charts
-- `streamlit-option-menu` for sidebar navigation
+The live app theme is defined in `.streamlit/config.toml`:
 
----
+- `primaryColor = "#8B5CF6"`
+- `backgroundColor = "#090B14"`
+- `secondaryBackgroundColor = "#141A31"`
+- `textColor = "#F7F8FC"`
 
-## Dashboard Overview
+## Outlier Finder Methodology Summary
 
-The main app entrypoint is `dashboard/app.py`. It exposes three primary views via the left-hand navigation:
+Outlier Finder is one of the most custom parts of the app, so it deserves a direct summary here.
 
-1. **Channel Analysis**
-2. **Recommendations**
-3. **Ytuber (Creator Suite)**
+### What it measures
 
-All pages share:
-- A **Purdue × Google** branded dark UI
-- Glassmorphism KPI cards
-- Plotly-based charts using a shared dark template
+The outlier score is a weighted mix of:
 
-### 1. Channel Analysis
+- channel-baseline lift
+- peer percentile
+- engagement percentile
+- recency boost
 
-Location: `dashboard/views/channel_analysis.py`
+### Key derived metrics
 
-- **Dataset selector**:
-  - Research / Science
-  - Tech
-  - Gaming
-  - Entertainment
-  - **All Categories** (combined multi-category view)
-- **Filters**:
-  - Channel multi-select
-  - Published date range
-- **KPI strip** (per current filters):
-  - Total videos, channels, views
-  - Average views per video
-  - Median engagement rate
-- **Visuals**:
-  - Top channels by views (horizontal bar chart + detailed table)
-  - Monthly uploads & views (dual-axis line chart)
-  - Best-performing videos (styled table with gradients)
-  - Publishing day performance (bar charts for average views and engagement rate by weekday)
-  - Views vs. engagement scatter (per-video bubble chart)
-  - Engagement distribution (donut chart: low/medium/high buckets)
+- `Views Per Day`
+  - views divided by video age in days
+- `Views Per Subscriber`
+  - views normalized by channel subscriber count when public
+- `Peer Percentile`
+  - performance relative to the scanned cohort
+- `Baseline Component`
+  - how far the video is running above the channel's recent baseline
+- `Language Confidence`
+  - heuristic score based on metadata and title script
 
-This view is ideal for stakeholder readouts on **portfolio-level performance** and publishing behavior.
+### Practical constraints
 
-### 2. Recommendations & Thumbnail Studio
+- results come from the scanned cohort returned by YouTube search, not the entire platform
+- YouTube search is ranked and sampled
+- subscriber counts may be hidden or rounded
+- language filtering is heuristic, not guaranteed
+- there is no access to impressions, CTR, watch time, or retention from the public API
 
-Location: `dashboard/views/recommendations.py`
+### Current cache behavior
 
-- **Dataset selector** (same categories as Channel Analysis, including **All Categories**).
-- **Analytics-backed recommendations**:
-  - KPIs for:
-    - Best publish day
-    - Target title length
-    - High-performing sample size
-  - Suggested keyword angles rendered as **styled chips**.
-  - Reference videos to model (styled dataframe with optional thumbnail preview column).
-- **🎨 AI Thumbnail Studio**:
-  - Provider: `gemini` or `openai`
-  - Model fields:
-    - Gemini (e.g. `gemini-2.0-flash-exp-image-generation`)
-    - OpenAI (e.g. `gpt-image-1`)
-  - Inputs:
-    - Video title, context, style, negative prompt
-    - Number of options and size (for OpenAI)
-  - Outputs:
-    - Grid of thumbnail cards with hover effects
-    - One-click **Download** for each generated image
+- niche query cache: 1 hour
+- channel baseline cache: 6 hours
 
-This page connects **observed data patterns** with **creative assets** (thumbnails) in a single workflow.
+## AI Integrations
 
-### 3. Ytuber – Creator Suite
+### Outlier AI Research
 
-Location: `dashboard/views/ytuber.py`
+`src/services/outlier_ai.py` converts outlier results into structured research cards with:
 
-End-to-end **creator cockpit** combining YouTube API pulls, analytics, and AI assistance.
+- executive headline
+- key takeaway
+- confidence label and notes
+- breakout themes
+- title patterns
+- repeatable angles
+- notable anomalies
+- next steps
+- warnings
 
-#### Inputs
-- `YOUTUBE_API_KEY` (from `.env` or Streamlit secrets)
-- Channel handle / name / channel ID
-- Optional: force-refresh toggle to bypass cache
+Provider support:
 
-#### Tabs
+- Gemini
+- OpenAI
 
-1. **Overview**
-   - KPIs for videos (1Y), views, likes, comments, average views, median engagement
-   - Monthly uploads + views (dual-axis Plotly line chart)
-   - Top 12 videos table (styled)
+### Thumbnail Generation
 
-2. **Channel Audit**
-   - Consistency score, average upload gap, 90-day view growth, outlier rate
-   - Audit notes rendered in styled cards
+`src/llm_integration/thumbnail_generator.py` supports:
 
-3. **Keyword Intel**
-   - Keyword table with scores (styled dataframe)
-   - High-opportunity keywords as chips
-   - Keyword treemap and bar chart for opportunity visualization
+- Gemini image generation
+- OpenAI image generation via the Images API
 
-4. **Title & SEO Lab**
-   - Title and description scores as **gauge charts**
-   - Detailed breakdown tables
-   - Suggested improvements as tip lists
+It exposes controls for:
 
-5. **Competitor Benchmark**
-   - Compare multiple competitor channels:
-     - Videos (1Y), total views, average views, median engagement
-   - Radar chart and bar charts for stakeholder-friendly comparisons
+- model
+- count
+- size
+- quality
+- background
+- output format
 
-6. **Trend Radar**
-   - Rising vs. falling keyword momentum in the last 60 days vs prior 60
-   - Styled table + diverging bar charts
+Generated files are saved under `outputs/thumbnails/`.
 
-7. **Content Planner**
-   - Best day and hour for publishing (KPI cards)
-   - Day × metric heatmap and views-by-hour bar chart
-   - 4-week suggested calendar rendered as visual cards
+## Scripts
 
-8. **AI Studio**
-   - **Dual-provider AI content and thumbnail lab**:
-     - Text provider: `gemini` or `openai`
-       - Models such as `gemini-2.0-flash` or `gpt-4.1-mini`
-     - Image provider: `gemini` or `openai`
-       - Models such as `gemini-2.0-flash-exp-image-generation` or `gpt-image-1`
-   - Creative brief + task selector (full pack, titles only, descriptions only, scripts, hooks/CTAs)
-   - AI Output rendered in a styled, scrollable card with preserved formatting
-   - Thumbnails rendered using the same grid/card system as Recommendations
+The `scripts/` directory includes the repo's operational utilities.
 
-This suite is designed for **live strategy sessions** with stakeholders and for hands-on creator experimentation.
+### `scripts/yt_api_smoketest.py`
 
----
+A richer smoke test for the public YouTube Data API. It checks:
 
-## Visual Analytics
-Place generated visuals in `outputs/figures/` and link them here. Recommended artifacts:
-- **Channel Performance Summary:** engagement vs. frequency
-- **Topic Clusters:** BERTopic 2D embeddings and top keywords
-- **Recommendation Impact:** before/after mock strategy uplift
+- channel discovery
+- channel details
+- uploads playlist traversal
+- video details
+- video categories
+- sample comments
 
-## Ethics and Compliance
-- Respect YouTube API Terms of Service
-- Do not store or share personally identifiable information (PII)
-- Publish only aggregated or anonymized insights
+Use it when validating that a YouTube API key is working and returning the expected response shapes.
 
-## Contributing
-See `CONTRIBUTING.md` for standards and workflow.
+### `scripts/build_*_dataset.py`
+
+These scripts build the CSV datasets for different categories:
+
+- `build_category_dataset.py`
+- `build_fitness_dataset.py`
+- `build_research_dataset.py`
+
+They are useful if you want to refresh or regenerate the bundled datasets outside the Streamlit app.
+
+### `scripts/available_data_constraints.md`
+
+Documents what the public YouTube API can and cannot provide, and how those limitations should influence product design and interpretation.
+
+## Tests
+
+The current test suite includes:
+
+- `tests/unit/test_outliers_finder.py`
+  - verifies scoring behavior, ordering, scan quality summaries, and presentational helpers
+- `tests/unit/test_outlier_ai.py`
+  - verifies JSON extraction, report mapping, and fallback behavior
+- `tests/integration/test_pipeline.py`
+  - verifies outlier search flow with mocked API responses and advanced filters
+- `tests/unit/test_text_processing.py`
+- `tests/unit/test_data_collection.py`
+
+Run:
+
+```bash
+python3 -m pytest
+```
+
+## Known Limitations
+
+This app is intentionally pragmatic, not a full YouTube intelligence platform with first-party creator analytics.
+
+Important limitations:
+
+- all live research is limited to public YouTube metadata
+- YouTube API search quota is expensive, especially `search.list`
+- Outlier Finder is not an exhaustive rank tracker
+- language, geography, and subscriber-based filters are best-effort
+- some legacy folders in `src/` are still placeholders and do not reflect the live dashboard architecture
+
+## Supporting Documentation
+
+- `docs/ARCHITECTURE.md`
+  - original high-level architecture note
+- `docs/PROJECT_BRIEF.md`
+  - original academic project brief
+- `CONTRIBUTING.md`
+  - contribution guidelines
+- `SECURITY.md`
+  - private reporting guidance for vulnerabilities
+- `LICENSE`
+  - MIT license
+
+## Contribution And Maintenance Notes
+
+If you change behavior or configuration:
+
+- update the relevant view/service code
+- update tests if the behavior is observable
+- update this README if setup, deployment, or feature scope changed
+
+For UI changes, include screenshots in pull requests as noted in `CONTRIBUTING.md`.
 
 ## License
+
 MIT License. See `LICENSE`.
-
----
-
-## Deployment (Streamlit Cloud)
-
-The dashboard is designed to be deployed directly to **Streamlit Cloud**.
-
-1. **Push to GitHub**
-   - Repository should contain:
-     - `dashboard/app.py` (entrypoint)
-     - `.streamlit/config.toml`
-     - `requirements.txt`
-
-2. **Create Streamlit app**
-   - Visit the Streamlit Cloud UI and click **New app**.
-   - Choose:
-     - **Repo**: `Debadri1999/Youtube-Optmization`
-     - **Branch**: `main`
-     - **Main file path**: `dashboard/app.py`
-
-3. **Configure secrets**
-   - In the app settings, add:
-     ```toml
-     YOUTUBE_API_KEY = "your_youtube_key"
-     GEMINI_API_KEY = "your_gemini_key"
-     OPENAI_API_KEY = "your_openai_key"
-     ```
-
-4. **Launch**
-   - Streamlit installs dependencies from `requirements.txt` and boots the app with the dark theme + all dashboards enabled.
-
-This setup is stakeholder-ready for demos to Google and Purdue partners: the UI, navigation, and AI integrations mirror a modern SaaS analytics product.

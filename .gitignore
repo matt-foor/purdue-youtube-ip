@@ -22,8 +22,6 @@ Thumbs.db
 .idea/
 
 # Data and outputs
-data/raw/
-data/processed/
 outputs/figures/
 outputs/logs/
 outputs/models/
@@ -31,3 +29,4 @@ outputs/reports/
 
 # Local configs
 config/*.local.yaml
+.streamlit/secrets.toml
