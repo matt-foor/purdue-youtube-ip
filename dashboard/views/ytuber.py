@@ -37,6 +37,7 @@ from src.services.outliers_finder import (
     search_outlier_videos,
 )
 from src.utils.api_keys import get_provider_key_count, run_with_provider_keys
+from src.services.ml_config import ENABLE_ML_BACKEND, _ml_client, build_channel_payload
 
 
 DATASET_PATH = os.path.join("data", "youtube api data", "research_science_channels_videos.csv")
@@ -52,6 +53,7 @@ POWER_WORDS = {
 }
 WORKSPACE_MODULES = [
     "AI Studio",
+    "ML Analysis",
     "Overview",
     "Channel Audit",
     "Keyword Intel",
@@ -1234,7 +1236,7 @@ def _ensure_numeric_and_dates(df: pd.DataFrame) -> pd.DataFrame:
     out["publish_day"] = out["video_publishedAt"].dt.day_name()
     out["publish_hour"] = out["video_publishedAt"].dt.hour
     out["duration_seconds"] = out["duration"].fillna("").astype(str).map(_parse_iso_duration_seconds)
-    out["is_short"] = out["duration_seconds"] <= 60
+    out["is_short"] = out["duration_seconds"] < 60
     return out
 
 
@@ -3092,6 +3094,189 @@ def _render_ai_studio(
                 st.error(f"Thumbnail generation failed: {exc}")
 
 
+def _build_channel_meta_from_df(channel_df: pd.DataFrame, channel_id: str, channel_title: str) -> dict:
+    row = channel_df.iloc[0] if not channel_df.empty else {}
+    return {
+        "channel_id": channel_id,
+        "channel_title": channel_title,
+        "channel_description": str(row.get("channel_description", "") or ""),
+        "channel_publishedAt": str(row.get("channel_publishedAt", "") or ""),
+        "channel_subscriberCount": row.get("channel_subscriberCount", 0),
+        "channel_viewCount": row.get("channel_viewCount", 0),
+        "channel_videoCount": row.get("channel_videoCount", 0),
+        "channel_country": str(row.get("channel_country", "") or ""),
+    }
+
+
+if hasattr(st, "fragment"):
+
+    @st.fragment(run_every=2)
+    def _ml_poll_fragment(job_id: str) -> None:
+        try:
+            resp = _ml_client.get_job_status(job_id)
+        except Exception as exc:
+            st.session_state["ml_inference_error"] = {"message": str(exc), "retryable": True}
+            st.session_state.pop("ml_job_id", None)
+            st.rerun(scope="app")
+            return
+
+        status = resp.get("status")
+        if status == "done":
+            st.session_state["ml_inference"] = resp["result"]
+            st.session_state.pop("ml_job_id", None)
+            st.rerun(scope="app")
+        elif status == "failed":
+            err = resp.get("error") or {"message": "Inference failed.", "retryable": False}
+            st.session_state["ml_inference_error"] = err
+            st.session_state.pop("ml_job_id", None)
+            st.rerun(scope="app")
+        else:
+            st.info("ML analysis running — this takes 20–45 seconds...")
+
+else:
+
+    def _ml_poll_fragment(job_id: str) -> None:
+        # Older Streamlit versions do not support st.fragment; in that case we
+        # simply skip live polling and keep ML Analysis disabled.
+        st.info("ML live polling is unavailable in this Streamlit version.")
+
+
+def _render_ml_analysis(channel_df: pd.DataFrame, channel_id: str, channel_title: str) -> None:
+    section_header("ML Analysis", icon="🧠")
+
+    if not ENABLE_ML_BACKEND:
+        st.info("Set `ENABLE_ML_BACKEND=true` to unlock ML-backed analysis.")
+        return
+
+    ml_result = st.session_state.get("ml_inference")
+    ml_error = st.session_state.get("ml_inference_error")
+    job_id = st.session_state.get("ml_job_id")
+
+    # freshness check
+    if ml_result:
+        from datetime import datetime, timezone as _tz
+        try:
+            computed_at = datetime.fromisoformat(
+                ml_result["computed_at"].replace("Z", "+00:00")
+            ).astimezone(_tz.utc)
+            age_h = (datetime.now(_tz.utc) - computed_at).total_seconds() / 3600
+            if age_h > 24:
+                st.warning(f"ML analysis last run {int(age_h)}h ago — re-run for fresher results.")
+            else:
+                st.caption(f"ML analysis last run {int(age_h)}h ago.")
+        except Exception:
+            pass
+
+    # error state
+    if ml_error:
+        st.error(f"ML analysis failed: {ml_error.get('message', 'Unknown error')}")
+        if st.button("Retry ML Analysis", key="ml_retry_btn"):
+            st.session_state.pop("ml_inference_error", None)
+            st.session_state.pop("ml_inference", None)
+            st.session_state.pop("ml_job_id", None)
+            st.rerun()
+        return
+
+    # polling fragment — active while job is running
+    if job_id and not ml_result:
+        _ml_poll_fragment(job_id)
+        return
+
+    # run button
+    if not ml_result:
+        n_videos = len(channel_df)
+        st.markdown(
+            f"Run a full ML analysis on **{channel_title}** ({n_videos} videos). "
+            "Covers topic gaps, reach forecasts, thumbnail diagnostics, and AI narrative."
+        )
+        if st.button("Run ML Analysis", type="primary", key="ml_run_btn"):
+            try:
+                meta = _build_channel_meta_from_df(channel_df, channel_id, channel_title)
+                payload = build_channel_payload(channel_df, meta)
+                new_job_id = _ml_client.start_inference(payload)
+                st.session_state["ml_job_id"] = new_job_id
+                st.session_state.pop("ml_inference_error", None)
+                st.rerun()
+            except Exception as exc:
+                st.error(f"Failed to start ML analysis: {exc}")
+        return
+
+    # results
+    gaps = ml_result.get("gaps", {})
+    topics_result = ml_result.get("topics", {})
+    time_windows = ml_result.get("time_windows", {})
+    ai_sections = ml_result.get("ai_sections", {})
+    blueprint = ml_result.get("thumbnail_blueprint", {})
+
+    tab_gaps, tab_overview, tab_timing, tab_thumb = st.tabs(
+        ["Gap Topics", "Overview", "Publish Timing", "Thumbnails"]
+    )
+
+    with tab_gaps:
+        gap_topics = gaps.get("topics") or []
+        if not gap_topics:
+            st.info("No gap topics found for this channel.")
+        else:
+            for g in gap_topics:
+                label = g.get("topic_label", "")
+                score = g.get("gap_score", 0)
+                vpd = g.get("predicted_views_per_day", 0)
+                traj = g.get("trajectory_label", "stable")
+                is_short = g.get("is_short_recommended", False)
+                badge = "🩳 Shorts" if is_short else "🎬 Longform"
+                st.markdown(
+                    f"**{label}** · gap score `{score:.2f}` · "
+                    f"~{int(vpd):,} views/day · {traj} · {badge}"
+                )
+
+    with tab_overview:
+        overview = ai_sections.get("overview", "")
+        topic_recs = ai_sections.get("topic_recommendations", "")
+        if overview:
+            st.markdown(overview)
+        if topic_recs:
+            st.markdown("---")
+            st.markdown(topic_recs)
+        coverage = topics_result.get("coverage_summary", {})
+        if coverage.get("top_topics"):
+            category_label = coverage.get("category", "")
+            cat_str = f" · category: {category_label}" if category_label else ""
+            st.caption(f"Topics covered: {coverage.get('total_topics', 0)}{cat_str}")
+
+    with tab_timing:
+        advice = ai_sections.get("publish_time_advice", "")
+        if advice:
+            st.markdown(advice)
+        if time_windows:
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Best hour (UTC)", time_windows.get("best_hour_utc", "—"))
+            col2.metric("Best day", str(time_windows.get("best_dow", "—")).title())
+            col3.metric(
+                "Recommended cadence",
+                f"{time_windows.get('cadence_videos_per_week_recommended', '—')} / week",
+            )
+
+    with tab_thumb:
+        thumb_advice = ai_sections.get("thumbnail_advice", "")
+        if thumb_advice:
+            st.markdown(thumb_advice)
+        axes = blueprint.get("axes") or []
+        if axes:
+            st.caption("Top thumbnail signal axes:")
+            for ax in axes[:6]:
+                direction = ax.get("direction", "")
+                icon = "✅" if direction == "positive" else "❌"
+                st.markdown(
+                    f"{icon} **{ax.get('axis', '')}** — {ax.get('recommendation', '')}"
+                )
+
+    if st.button("Re-run ML Analysis", key="ml_rerun_btn"):
+        st.session_state.pop("ml_inference", None)
+        st.session_state.pop("ml_job_id", None)
+        st.session_state.pop("ml_inference_error", None)
+        st.rerun()
+
+
 def render() -> None:
     if build is None:
         st.error("Missing dependency: google-api-python-client. Install with: python3 -m pip install google-api-python-client")
@@ -3208,6 +3393,9 @@ def render() -> None:
         st.session_state["ytuber_active_module"] = "AI Studio"
         st.session_state.pop("ytuber_active_module_pending", None)
         st.session_state.pop("ytuber_ai_notice", None)
+        st.session_state.pop("ml_inference", None)
+        st.session_state.pop("ml_job_id", None)
+        st.session_state.pop("ml_inference_error", None)
 
     if "ytuber_channel_df" not in st.session_state:
         st.markdown(
@@ -3258,6 +3446,8 @@ def render() -> None:
     if active_module == "AI Studio":
         hints = st.session_state.get("ytuber_keyword_hints") or _top_keywords(channel_df, 20)
         _render_ai_studio(channel_df, channel_title, channel_id, hints)
+    elif active_module == "ML Analysis":
+        _render_ml_analysis(channel_df, channel_id, channel_title)
     elif active_module == "Overview":
         _render_overview(channel_df)
     elif active_module == "Channel Audit":

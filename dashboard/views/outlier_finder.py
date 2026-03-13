@@ -23,6 +23,7 @@ from src.services.outliers_finder import (
     search_outlier_videos,
 )
 from src.utils.api_keys import get_provider_key_count
+from src.services.ml_config import ENABLE_ML_BACKEND
 
 
 TIMEFRAME_OPTIONS = ["Last 7 Days", "Last 30 Days", "Last 90 Days", "Custom"]
@@ -774,7 +775,7 @@ def _render_metadata_cluster(result, result_frame: pd.DataFrame) -> None:
     )
 
 
-def _render_result_card(row: pd.Series) -> None:
+def _render_result_card(row: pd.Series, gap_labels: set[str] | None = None) -> None:
     thumb_html = (
         f'<img src="{escape(str(row.get("thumbnail_url", "")))}" alt="{escape(str(row.get("video_title", "")))}" />'
         if str(row.get("thumbnail_url", "")).strip()
@@ -783,6 +784,13 @@ def _render_result_card(row: pd.Series) -> None:
     score = float(row.get("outlier_score", 0) or 0)
     why = f"<strong>Why It Stands Out:</strong> {escape(str(row.get('why_outlier', '')))}"
     cue = f"<strong>Research Cue:</strong> {escape(str(row.get('research_cue', '')))}"
+
+    gap_badge = ""
+    if gap_labels:
+        title_lower = str(row.get("video_title", "")).lower()
+        if any(label and label in title_lower for label in gap_labels):
+            gap_badge = '<span class="outlier-metric-chip" style="background:rgba(139,92,246,0.25);border-color:rgba(196,181,253,0.4);">🧠 Gap topic</span>'
+
     st.markdown(
         (
             '<div class="outlier-result-card">'
@@ -803,6 +811,7 @@ def _render_result_card(row: pd.Series) -> None:
             f'<span class="outlier-metric-chip">{_format_int(row.get("views"))} Views</span>'
             f'<span class="outlier-metric-chip">{_format_int(row.get("views_per_day"))} / Day</span>'
             f'<span class="outlier-metric-chip">{_format_subscribers(row.get("channel_subscriber_count"), bool(row.get("hidden_subscriber_count")))} Subs</span>'
+            f'{gap_badge}'
             '</div>'
             '<ul class="outlier-bullets">'
             f"<li>{why}</li>"
@@ -816,11 +825,43 @@ def _render_result_card(row: pd.Series) -> None:
     )
 
 
+def _gap_topic_labels() -> set[str]:
+    ml_result = st.session_state.get("ml_inference")
+    if not ENABLE_ML_BACKEND or not ml_result:
+        return set()
+    gaps = ml_result.get("gaps", {})
+    return {
+        str(g.get("topic_label", "")).lower()
+        for g in (gaps.get("topics") or [])
+        if g.get("topic_label")
+    }
+
+
+def _render_ml_publish_hint() -> None:
+    ml_result = st.session_state.get("ml_inference")
+    if not ENABLE_ML_BACKEND or not ml_result:
+        return
+    tw = ml_result.get("time_windows", {})
+    if not tw:
+        return
+    best_days = tw.get("top_days") or [tw.get("best_dow", "")]
+    best_hours = tw.get("top_hours_utc") or [tw.get("best_hour_utc", "")]
+    days_str = "/".join(str(d).title() for d in best_days[:3] if d)
+    hours_str = ", ".join(str(h) for h in best_hours[:3] if h != "")
+    if days_str or hours_str:
+        hint = f"Publishing similar content during your recommended windows ({days_str} {hours_str} UTC) may amplify these outliers."
+        st.markdown(
+            f'<div class="outlier-panel-note">🧠 <strong>ML publish hint:</strong> {escape(hint)}</div>',
+            unsafe_allow_html=True,
+        )
+
+
 def _render_result_cards(result_frame: pd.DataFrame) -> None:
+    gap_labels = _gap_topic_labels()
     cols = st.columns(3, gap="medium")
     for idx, (_, row) in enumerate(result_frame.head(9).iterrows()):
         with cols[idx % 3]:
-            _render_result_card(row)
+            _render_result_card(row, gap_labels=gap_labels)
 
 
 def _render_chart_shell(title: str, copy: str) -> None:
@@ -1453,6 +1494,7 @@ def render() -> None:
     sort_column, ascending = SORT_OPTIONS[sort_label]
     sorted_frame = result_frame.sort_values(sort_column, ascending=ascending).reset_index(drop=True)
     _render_metadata_cluster(result, sorted_frame)
+    _render_ml_publish_hint()
 
     _render_result_cards(sorted_frame)
 

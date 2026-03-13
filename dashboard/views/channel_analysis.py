@@ -13,6 +13,7 @@ from dashboard.components.visualizations import (
     section_header,
     styled_dataframe,
 )
+from src.services.ml_config import ENABLE_ML_BACKEND
 
 
 BASE_DATA_DIR = os.path.join("data", "youtube api data")
@@ -73,11 +74,40 @@ def _load_data_for_label(label: str) -> pd.DataFrame:
     return df
 
 
+def _render_ml_channel_overlay(ml_result: dict) -> None:
+    with st.expander("🧠 ML Channel Insights", expanded=True):
+        coverage = ml_result.get("coverage_summary", {})
+        time_windows = ml_result.get("time_windows", {})
+
+        top_topics = coverage.get("top_topics", [])
+        if top_topics:
+            st.markdown("**Topic mix for your channel:**")
+            for t in top_topics[:6]:
+                label = t.get("topic_label", "")
+                share = t.get("share", 0)
+                st.markdown(f"- {label} · {share:.1%} of videos")
+
+        if time_windows:
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Best hour (UTC)", time_windows.get("best_hour_utc", "—"))
+            col2.metric("Best day", str(time_windows.get("best_dow", "—")).title())
+            col3.metric(
+                "Recommended cadence",
+                f"{time_windows.get('cadence_videos_per_week_recommended', '—')} / week",
+            )
+
+
 def render() -> None:
     section_header("Channel Analysis", icon="📊")
 
     categories = _available_categories()
     selected_category = st.selectbox("Dataset category", categories, index=0)
+
+    ml_result = st.session_state.get("ml_inference")
+    if ENABLE_ML_BACKEND and ml_result:
+        _render_ml_channel_overlay(ml_result)
+    elif ENABLE_ML_BACKEND:
+        st.info("Run ML Analysis in Ytuber → ML Analysis to unlock channel insights.")
 
     st.caption(f"Analytics for `{selected_category}` YouTube channels and videos.")
 
