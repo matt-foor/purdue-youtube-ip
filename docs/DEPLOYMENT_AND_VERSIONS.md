@@ -1,67 +1,80 @@
-# Deployment, Model Flow, And Version Notes
+# V4 Deployment, Versions, And Model Flow
 
-## Branch Tag
+## Branch And Repo Targets
 
-- Original repo branch tag: `youtube-ip-v4`
-- Original repo: `matt-foor/purdue-youtube-ip`
-- Deploy repo: `royayushkr/Youtube-IP-V4`
-- Deploy branch: `main`
+| Item | Value |
+| --- | --- |
+| Original repo branch tag | `youtube-ip-v4` |
+| Original repo | `matt-foor/purdue-youtube-ip` |
+| Deploy repo | `royayushkr/Youtube-IP-V4` |
+| Deploy branch | `main` |
+| PR branch reference | [youtube-ip-v4](https://github.com/matt-foor/purdue-youtube-ip/tree/youtube-ip-v4) |
 
-## How The App And Scripts Work Together
+## Navigation Order
+
+1. `Channel Analysis`
+2. `Channel Insights`
+3. `Recommendations`
+4. `Outlier Finder`
+5. `Ytuber`
+6. `Tools`
+7. `Deployment`
+
+This branch also includes the global sidebar `Assistant`.
+
+## Streamlit Deployment Flow
 
 ```mermaid
 flowchart TD
-    A["User opens Streamlit app"] --> B["streamlit_app.py"]
-    B --> C["dashboard/app.py"]
-    C --> D["dashboard/components/sidebar.py"]
-    D --> E["Sidebar pages"]
-    D --> F["Sidebar Assistant"]
-
-    subgraph Pages
-        E1["Channel Analysis"]
-        E2["Recommendations"]
-        E3["Ytuber"]
-        E4["Channel Insights"]
-        E5["Outlier Finder"]
-        E6["Tools"]
-        E7["Deployment"]
-    end
-
-    E --> E1
-    E --> E2
-    E --> E3
-    E --> E4
-    E --> E5
-    E --> E6
-    E --> E7
-
-    E1 --> G1["Bundled CSV analytics"]
-    E2 --> G2["Strategy guidance + thumbnail generation"]
-    E3 --> G3["Live YouTube API + AI suite"]
-    E4 --> G4["Channel snapshot and topic services"]
-    E5 --> G5["Outlier search + AI report"]
-    E6 --> G6["Metadata, transcript, audio, video, thumbnail tools"]
-    F --> G7["Assistant retrieval and LLM services"]
+    A["GitHub repo branch<br/>youtube-ip-v4"] --> B["Streamlit app config"]
+    B --> C["streamlit_app.py"]
+    C --> D["dashboard/app.py"]
+    D --> E["Sidebar navigation"]
+    E --> F["Page views"]
+    G["Streamlit secrets"] --> H["Runtime services"]
+    H --> F
+    F --> I["Charts, tables, cards, prompts, downloads"]
 ```
 
-## How Model-Backed Topics Are Actually Deployed
-
-The BERTopic-backed topic mode is activated through Streamlit secrets, not through a model file committed into the main runtime tree.
+## Secrets And Live API Flow
 
 ```mermaid
 flowchart LR
-    A["Streamlit secrets"] --> B["MODEL_ARTIFACTS_ENABLED"]
-    A --> C["MODEL_ARTIFACTS_MANIFEST_URL"]
-    C --> D["src/services/model_artifact_service.py"]
-    D --> E["Manifest JSON"]
-    E --> F["artifact_url + sha256 + bundle_version"]
-    F --> G["Download artifact on explicit beta request"]
-    G --> H["outputs/models/runtime/<bundle_version>/"]
-    H --> I["src/services/topic_model_runtime.py"]
-    I --> J["src/services/channel_insights_service.py"]
-    J --> K["dashboard/views/channel_insights.py"]
-    J --> L["SQLite snapshot payload"]
+    A["Streamlit secrets"] --> B["YOUTUBE_API_KEYS"]
+    A --> C["GEMINI_API_KEYS / OPENAI_API_KEYS"]
+    A --> D["GOOGLE_OAUTH_*"]
+    A --> E["MODEL_ARTIFACTS_*"]
+
+    B --> F["src/utils/api_keys.py"]
+    C --> F
+    F --> G["YouTube Data API / Gemini / OpenAI"]
+    D --> H["Google OAuth + YouTube Analytics"]
+    G --> I["Service-layer transforms"]
+    H --> I
+    I --> J["Rendered Streamlit UI"]
 ```
+
+## Model-Backed Topic Deployment
+
+```mermaid
+flowchart LR
+    A["MODEL_ARTIFACTS_ENABLED"] --> B["Channel Insights beta mode allowed"]
+    C["MODEL_ARTIFACTS_MANIFEST_URL"] --> D["model_artifact_service.py"]
+    D --> E["Manifest JSON in deploy repo"]
+    E --> F["artifact_url + sha256 + bundle_version"]
+    F --> G["Download only on explicit beta refresh"]
+    G --> H["outputs/models/runtime/<bundle_version>/"]
+    H --> I["topic_model_runtime.py loads bundle"]
+    I --> J["channel_insights_service.py assigns topics"]
+    J --> K["Channel Insights UI and snapshots"]
+    D --> L["Fallback to heuristic topics"]
+    L --> J
+```
+
+### Topic Mode Explanation
+
+- `Heuristic Topics` = built-in keyword and rule grouping
+- `Model-Backed Topics` = optional BERTopic semantic grouping loaded from the external artifact path
 
 ### Streamlit Secrets Block
 
@@ -81,32 +94,15 @@ MODEL_ARTIFACTS_DOWNLOAD_TIMEOUT_SECONDS = 300
 MODEL_ARTIFACTS_MAX_SIZE_MB = 512
 ```
 
-### What The Manifest Does
-
-The secret points to a manifest JSON file in the deploy repo. That manifest then defines:
-
-- the external `artifact_url`
-- the expected `sha256`
-- the `bundle_version`
-- the loading subpath for the runtime service
-
-In this branch, the checked-in manifest currently points to the external BERTopic artifact hosted from the `asher` artifact source. The app reads the manifest first, then downloads and validates the artifact lazily only when beta topic mode is requested.
-
 ## V4 Vs V5
 
 | Area | V4 (`youtube-ip-v4`) | V5 (`youtube-ip-v5`) |
 | --- | --- | --- |
 | Sidebar Assistant | Present | Removed |
 | Google OAuth | Present | Removed |
-| Channel Insights | Public + owner overlays when authorized | Public-only |
-| Recommendations page | Present as `Recommendations` | Renamed in-app to `Thumbnails` |
+| Channel Insights | Public + optional owner overlays | Public-only |
+| Page 3 label | `Recommendations` | `Thumbnails` |
 | Ytuber | Present | Present |
 | Tools | Present | Present |
-| Deployment page | Present | Present |
+| Deployment | Present | Present |
 | BERTopic beta | Optional | Optional |
-| Deploy repo | `royayushkr/Youtube-IP-V4` | `royayushkr/Youtube-IP-V5` |
-
-## What To Use When
-
-- Use `youtube-ip-v4` if you want the fullest legacy product surface, including the Assistant and Google OAuth owner analytics.
-- Use `youtube-ip-v5` if you want the lighter shell and public-only Channel Insights while still keeping the AI suite pages.
