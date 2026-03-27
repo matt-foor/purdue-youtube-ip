@@ -343,7 +343,7 @@ def _render_connect_card(connected_channels: list[dict[str, Any]]) -> None:
                         <div class="ci-summary-value">Heuristic</div>
                     </div>
                 </div>
-                <div class="ci-note" style="margin-top:0.85rem;">Channel Insights stays public-only in this lighter V4 cleanup. It still supports snapshot history, topic trends, outliers, and next-topic recommendations.</div>
+                <div class="ci-note" style="margin-top:0.85rem;">Channel Insights stays public-only in this lighter V5 build. It still supports snapshot history, topic trends, outliers, and next-topic recommendations.</div>
             </div>
             """,
             unsafe_allow_html=True,

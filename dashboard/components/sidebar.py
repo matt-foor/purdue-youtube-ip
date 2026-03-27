@@ -36,7 +36,7 @@ def render_sidebar() -> str:
                     <span style="font-size:14px;font-weight:800;color:#FFFFFF;">▶</span>
                 </div>
                 <div>
-                    <div style="font-weight:700;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:#FFFFFF;">YouTube IP V4</div>
+                    <div style="font-weight:700;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:#FFFFFF;">YouTube IP V5</div>
                     <div style="font-size:11px;color:#B8C1DA;">Creator Intelligence Suite</div>
                 </div>
             </div>

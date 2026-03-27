@@ -141,7 +141,7 @@ def main() -> int:
     parser.add_argument("--bundle-version", required=True, help="Version string for the release bundle.")
     parser.add_argument("--bertopic-version", required=True, help="BERTopic version that produced the model.")
     parser.add_argument("--python-version", default=f"{sys.version_info.major}.{sys.version_info.minor}", help="Python version used to verify the bundle.")
-    parser.add_argument("--repo", help="GitHub repo in owner/name form, for example royayushkr/Youtube-IP-V4.")
+    parser.add_argument("--repo", help="GitHub repo in owner/name form, for example royayushkr/Youtube-IP-V5.")
     parser.add_argument("--tag", help="Git tag / release tag to publish assets under.")
     parser.add_argument("--github-token", default=os.getenv("GITHUB_TOKEN", ""), help="GitHub token with release upload access.")
     parser.add_argument("--skip-verify", action="store_true", help="Skip local BERTopic.load verification of the packaged bundle.")

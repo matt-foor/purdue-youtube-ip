@@ -219,7 +219,7 @@ MODEL_ARTIFACTS_DOWNLOAD_TIMEOUT_SECONDS = 300
 MODEL_ARTIFACTS_MAX_SIZE_MB = 512
 ```
 
-## V4 Vs V5
+## Version Comparison
 
 | Area | V4 | V5 |
 | --- | --- | --- |
