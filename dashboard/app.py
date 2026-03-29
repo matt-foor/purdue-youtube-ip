@@ -9,11 +9,11 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from dashboard.components.sidebar import render_sidebar
 from dashboard.components.theme import inject_shared_theme
-from dashboard.views import channel_analysis, outlier_finder, recommendations, ytuber
+from dashboard.views import channel_analysis, channel_insights, outlier_finder, recommendations, tools, ytuber
 
 
 st.set_page_config(
-    page_title="YouTube IP V3",
+    page_title="YouTube IP V4",
     page_icon="📺",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -22,8 +22,8 @@ st.set_page_config(
 def _render_hero() -> None:
     st.markdown(
         """
-        <div class="fade-in" style="margin-bottom: 1.0rem;">
-            <div class="yt-page-title">YouTube IP V3</div>
+            <div class="fade-in" style="margin-bottom: 1.0rem;">
+            <div class="yt-page-title">YouTube IP V4</div>
             <div class="yt-page-subtitle">
                 Cross-channel analytics, benchmarking, and AI-assisted planning for YouTube creators.
             </div>
@@ -46,8 +46,12 @@ elif page == "Recommendations":
     recommendations.render()
 elif page == "Ytuber":
     ytuber.render()
+elif page == "Channel Insights":
+    channel_insights.render()
 elif page == "Outlier Finder":
     outlier_finder.render()
+elif page == "Tools":
+    tools.render()
 else:
     st.title("Deployment")
     st.markdown(
@@ -63,7 +67,7 @@ else:
         ```
 
         ### Streamlit Cloud Settings
-        - Repo: `royayushkr/Youtube-IP-V3`
+        - Repo: `royayushkr/Youtube-IP-V4`
         - Branch: `main`
         - Main file path: `streamlit_app.py`
 
@@ -81,7 +85,10 @@ else:
         - `streamlit_app.py` is the root-level deployment entrypoint for Streamlit Cloud.
         - Channel Analysis and Recommendations use the committed CSV datasets under `data/youtube api data/`.
         - The Ytuber suite uses live API calls and rotates across the configured key pools.
+        - Channel Insights stores dated SQLite snapshots on manual refresh and can optionally blend in owner-only YouTube Analytics metrics when Google OAuth is configured for the current session.
         - Outlier Finder is a standalone sidebar feature with a results-first flow, breakout snapshot, structured AI research, heuristic language filtering, and one-hour query caching.
+        - Tools is a standalone sidebar utility page for metadata preview, thumbnails, transcripts, audio, and video downloads.
+        - `packages.txt` installs `ffmpeg` for merged video downloads and MP3 conversion in the Tools page.
 
         ### Outlier Finder Methodology Summary
         - **Outlier Score:** weighted mix of baseline lift, peer percentile, engagement percentile, and recency boost.

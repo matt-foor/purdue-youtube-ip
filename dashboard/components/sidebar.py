@@ -1,6 +1,8 @@
 import streamlit as st
 from streamlit_option_menu import option_menu
 
+from dashboard.components.assistant_panel import render_assistant_panel
+
 
 def render_sidebar() -> str:
     """Render the branded sidebar navigation and return the selected page."""
@@ -8,7 +10,9 @@ def render_sidebar() -> str:
         "Channel Analysis",
         "Recommendations",
         "Ytuber",
+        "Channel Insights",
         "Outlier Finder",
+        "Tools",
         "Deployment",
     ]
     current_page = st.session_state.get("app_page", page_options[0])
@@ -23,7 +27,7 @@ def render_sidebar() -> str:
                     <span style="font-size:14px;font-weight:800;color:#FFFFFF;">▶</span>
                 </div>
                 <div>
-                    <div style="font-weight:700;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:#FFFFFF;">YouTube IP V3</div>
+                    <div style="font-weight:700;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:#FFFFFF;">YouTube IP V4</div>
                     <div style="font-size:11px;color:#B8C1DA;">Creator Intelligence Suite</div>
                 </div>
             </div>
@@ -36,7 +40,7 @@ def render_sidebar() -> str:
         selected = option_menu(
             menu_title=None,
             options=page_options,
-            icons=["bar-chart-fill", "bullseye", "rocket-takeoff-fill", "search", "gear"],
+            icons=["bar-chart-fill", "bullseye", "rocket-takeoff-fill", "graph-up-arrow", "search", "tools", "gear"],
             default_index=page_options.index(current_page),
             styles={
                 "container": {
@@ -67,6 +71,10 @@ def render_sidebar() -> str:
 
         st.markdown("<hr style='border-color:rgba(255,255,255,0.10);margin:0.4rem 0 0.6rem;' />", unsafe_allow_html=True)
 
+        render_assistant_panel(selected)
+
+        st.markdown("<hr style='border-color:rgba(255,255,255,0.10);margin:0.6rem 0 0.6rem;' />", unsafe_allow_html=True)
+
         st.markdown(
             """
             <div style="font-size:11px;color:#B8C1DA;margin-bottom:0.4rem;">
@@ -80,7 +88,7 @@ def render_sidebar() -> str:
             """
             <div style="font-size:10px;color:#8993B2;margin-top:0.6rem;line-height:1.4;">
                 <strong>Streamlit-ready deployment</strong><br/>
-                Repo: royayushkr/Youtube-IP-V3
+                Repo: royayushkr/Youtube-IP-V4
             </div>
             """,
             unsafe_allow_html=True,

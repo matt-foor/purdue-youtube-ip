@@ -1,5 +1,6 @@
 bertopic
 google-api-python-client>=2.190.0
+google-auth-oauthlib>=1.2.2
 matplotlib
 numpy>=1.26,<3
 openai
@@ -15,3 +16,5 @@ tqdm
 pytest
 streamlit-option-menu>=0.3.12
 streamlit-lottie>=0.0.5
+yt-dlp>=2026.3.3
+youtube-transcript-api>=1.2.4
