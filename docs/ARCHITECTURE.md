@@ -2,6 +2,17 @@
 
 This document is the current-runtime reference for V5. The version-history story lives in the README and project brief; this file focuses on how the deployed app works today, page by page and service by service.
 
+## Deep-Dive Guide
+
+- [Channel Analysis](#channel-analysis)
+- [Channel Insights](#channel-insights)
+- [Thumbnails](#thumbnails)
+- [Outlier Finder](#outlier-finder)
+- [Ytuber](#ytuber)
+- [Tools](#tools)
+- [Deployment](#deployment)
+- [Model-Backed Topic Artifact Flow](#model-backed-topic-artifact-flow)
+
 ## Runtime Inventory
 
 | Item | Count | Notes |

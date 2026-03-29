@@ -154,6 +154,26 @@ flowchart TD
 
 For the full section-by-section mechanics, see [Architecture](docs/ARCHITECTURE.md).
 
+## Current Interactive Surfaces
+
+| Page | Surface Type | Count | Current Surfaces | What They Do |
+| --- | --- | --- | --- | --- |
+| `Channel Analysis` | main analytics canvas | `1` | dataset filters + charts/tables | benchmark bundled CSV data |
+| `Channel Insights` | tabs | `6` | `Overview`, `Topic Trends`, `Formats & Patterns`, `Outliers`, `Next Topics`, `History` | turn tracked public-channel snapshots into interpretable strategy signals |
+| `Thumbnails` | tabs | `2` | `Generate`, `Download From URL` | create new thumbnails or export a public one |
+| `Outlier Finder` | post-search sections | `4` | `Top Outliers In This Scan`, `Breakout Snapshot`, `AI Research`, `How This Works` | score breakout videos first, then interpret them |
+| `Ytuber` | segmented modules | `8` | `AI Studio`, `Overview`, `Channel Audit`, `Keyword Intel`, `Outliers Finder`, `Title & SEO Lab`, `Competitor Benchmark`, `Content Planner` | open a live creator workspace around one channel |
+| `Tools` | tabs | `3` | `Single`, `Batch`, `Playlist` | inspect and prepare public YouTube asset downloads |
+| `Deployment` | in-app reference view | `1` | deployment/setup guidance | explain how to run and deploy the app |
+
+For the detailed tab-by-tab and module-by-module behavior, see:
+
+- [Architecture: Channel Insights](docs/ARCHITECTURE.md#channel-insights)
+- [Architecture: Thumbnails](docs/ARCHITECTURE.md#thumbnails)
+- [Architecture: Outlier Finder](docs/ARCHITECTURE.md#outlier-finder)
+- [Architecture: Ytuber](docs/ARCHITECTURE.md#ytuber)
+- [Architecture: Tools](docs/ARCHITECTURE.md#tools)
+
 ## Current V5 Architecture In One View
 
 ```mermaid
@@ -185,6 +205,34 @@ flowchart TD
     M3 --> N
 ```
 
+For the deeper page-by-page breakdown, see [Architecture](docs/ARCHITECTURE.md#page-problem-map).
+
+## API And Secrets Flow
+
+```mermaid
+flowchart LR
+    A["Streamlit secrets / env"] --> B["src/utils/api_keys.py"]
+    B --> C["Select / rotate provider key"]
+    C --> D["YouTube Data API"]
+    C --> E["Gemini"]
+    C --> F["OpenAI"]
+    D --> G["Channel Insights / Outlier Finder / Ytuber / Tools / Thumbnail URL flow"]
+    E --> H["Thumbnails / Ytuber AI Studio / Outlier AI"]
+    F --> H
+    G --> I["service-layer normalization"]
+    H --> I
+    I --> J["pandas frames / scored payloads / artifact prep"]
+    J --> K["Rendered Streamlit UI"]
+```
+
+This is the live V5 runtime path today:
+
+- bundled CSVs power `Channel Analysis`
+- live YouTube API calls power `Channel Insights`, `Outlier Finder`, `Ytuber`, `Tools`, and thumbnail URL export
+- Gemini/OpenAI power thumbnail generation, AI Studio, and Outlier AI research
+
+For the deeper API/service explanation, see [Architecture](docs/ARCHITECTURE.md#api-data-pipeline-overview).
+
 ## Channel Insights: Where The Modeling Actually Lives
 
 `Channel Insights` is where the most advanced modeling work in V5 lands. Every refresh starts with the same public-channel workspace, then branches into one of two topic assignment modes:
@@ -214,6 +262,65 @@ flowchart TD
     I --> L["shared scoring + metrics + outliers + snapshots"]
     K --> L
 ```
+
+For the full topic-mode branch, tab flow, and artifact-state details, see [Architecture: Channel Insights](docs/ARCHITECTURE.md#channel-insights).
+
+## Deployment Summary
+
+| Item | Value |
+| --- | --- |
+| Original repo | `matt-foor/purdue-youtube-ip` |
+| V5 source branch | `youtube-ip-v5` |
+| Deploy repo | `royayushkr/Youtube-IP-V5` |
+| Deploy branch | `main` |
+| Required secret families | `YOUTUBE`, `GEMINI`, `OPENAI` |
+| Optional secret family | `MODEL_ARTIFACTS_*` for BERTopic beta |
+
+```mermaid
+flowchart LR
+    A["GitHub repo"] --> B["V5 branch / deploy repo"]
+    B --> C["Streamlit or GCP environment"]
+    C --> D["Secrets / env vars"]
+    D --> E["streamlit_app.py"]
+    E --> F["dashboard/app.py"]
+    F --> G["7-page V5 app shell"]
+```
+
+Deployment notes in one screen:
+
+- V5 stays public-only for `Channel Insights`
+- the app reads `st.secrets` first, then environment variables
+- BERTopic beta only activates when `MODEL_ARTIFACTS_ENABLED=true` and the manifest URL is configured
+- the GCP-oriented env template is [`.env.gcp.example`](.env.gcp.example)
+
+For the full deployment matrix and secrets history, see [Deployment And Versions](docs/DEPLOYMENT_AND_VERSIONS.md).
+
+## Project Brief And Evolution Summary
+
+The short version of the project story is:
+
+- `V1` proved the public-data analytics and recommendation concept
+- `V2` expanded into a broader creator operating system
+- `V3` clarified the product shell and runtime structure
+- `V4` added the deepest intelligence layer with `Channel Insights`, Assistant, Google OAuth, and BERTopic beta
+- `V5` keeps the strongest workflows, removes the heaviest operational complexity, and documents the system clearly for presentation and deployment
+
+What V5 removed on purpose:
+
+- sidebar `Assistant`
+- Google OAuth and owner-only analytics overlays
+- heavier mixed recommendation behavior on page 3
+
+What V5 kept on purpose:
+
+- dataset benchmarking
+- public tracked-channel insights
+- thumbnail generation and export
+- outlier research
+- the live `Ytuber` workspace
+- optional BERTopic beta modeling
+
+For the full narrative brief and retrospective, see [Project Brief](docs/PROJECT_BRIEF.md).
 
 ## Where To Read Next
 

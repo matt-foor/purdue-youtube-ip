@@ -184,6 +184,12 @@ MODEL_ARTIFACTS_DOWNLOAD_TIMEOUT_SECONDS = 300
 MODEL_ARTIFACTS_MAX_SIZE_MB = 512
 ```
 
+If you want a GCP-oriented environment template instead of Streamlit secrets, use:
+
+- [`.env.gcp.example`](../.env.gcp.example)
+
+That file is a placeholder template only. On GCP, inject those values as real environment variables or Secret Manager-backed service variables rather than shipping a real `.env` file in the repo.
+
 ## What V5 Keeps And What It Leaves Behind
 
 | Category | Kept In V5 | Left In Earlier Versions |
