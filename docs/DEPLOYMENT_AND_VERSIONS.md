@@ -2,6 +2,8 @@
 
 This document tracks the deployment story across all five released versions and explains how the current V5 runtime, secrets, and optional BERTopic path are deployed.
 
+For the current section-by-section runtime behavior, see [Architecture](ARCHITECTURE.md). This file stays focused on deployment, branch targets, version comparisons, and the model-artifact path.
+
 ## Current V5 Branch And Repo Targets
 
 | Item | Value |
@@ -92,6 +94,15 @@ flowchart TD
     H --> F
     F --> I["Charts, tables, cards, prompts, downloads"]
 ```
+
+The current V5 app surface behind that deployment is:
+
+- `7` sidebar pages
+- `2` primary runtime data paths
+- `3` provider families
+- `2` Channel Insights topic modes
+
+Deeper page-by-page behavior lives in [Architecture](ARCHITECTURE.md).
 
 ## Live API And Secrets Flow
 

@@ -2,6 +2,8 @@
 
 This document combines the original project brief with a retrospective look at how the product evolved from V1 through V5.
 
+It is intentionally narrative-first. For the current tab-by-tab and service-by-service runtime explanation of V5, use [Architecture](ARCHITECTURE.md).
+
 ## Original Problem Statement
 
 The project started from a practical creator problem: many small-to-mid-tier YouTube creators can see their own channel analytics, but they often lack cross-channel intelligence, comparable trend context, and actionable recommendations for what to make next. The team set out to close that gap by combining public YouTube data, modeling, and AI-assisted strategy generation in a usable dashboard.
@@ -157,6 +159,8 @@ V5 is the clearest version to present because it balances ambition with deployab
 - it retains the AI suite pages
 - it removes the heaviest operational branching from V4
 - it explains the complete journey from prototype to current product
+
+The companion implementation view for that final product now lives in [Architecture](ARCHITECTURE.md), which explains the current `Channel Insights`, `Thumbnails`, `Outlier Finder`, `Ytuber`, `Tools`, and `Deployment` workflows in operational detail.
 
 ## Presentation-Ready Summary
 

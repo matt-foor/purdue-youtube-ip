@@ -111,6 +111,49 @@ The current V5 sidebar order is:
 | `Tools` | inspect and export public YouTube assets | YouTube metadata, transcripts, yt-dlp, ffmpeg | previews, transcript exports, audio/video/thumbnail downloads |
 | `Deployment` | show deployment/setup guidance inside the app | static in-app instructions | repo, branch, secrets, deployment notes |
 
+## Current V5 Workflow Map
+
+This section is about the live app today, not the historical versions.
+
+| Page | User Goal | Main Inputs | Main Services Used | Main Outputs | Runtime Type |
+| --- | --- | --- | --- | --- | --- |
+| `Channel Analysis` | compare bundled channel/video benchmarks | committed CSV files, filters, date ranges | pandas transforms, visualization helpers | KPI cards, monthly trends, top channels, top videos | dataset-backed |
+| `Channel Insights` | analyze a tracked public channel over time | channel URL/handle/ID, optional beta topic mode, snapshot refresh actions | `public_channel_service`, `channel_insights_service`, `channel_snapshot_store`, `topic_model_runtime`, `model_artifact_service` | topic trends, format metrics, outliers, next-topic ideas, history | mixed |
+| `Thumbnails` | generate new thumbnail concepts or export a public one | title/context/style prompts, provider/model choice, YouTube video URL or ID | `thumbnail_generator.py`, `thumbnail_hub_service.py` | generated images, preview cards, prepared downloads | mixed |
+| `Outlier Finder` | surface overperforming videos in a niche | niche query, filters, optional AI research trigger | `outliers_finder.py`, `outlier_ai.py`, provider-key helpers | outlier cards, scored result tables, breakout charts, AI insight cards | mixed |
+| `Ytuber` | open a live creator workspace for one channel | channel query, live refresh toggle, segmented workspace module selection | YouTube API loaders, keyword/title scoring helpers, thumbnail generator, outlier handoff logic | audit views, keyword tables, AI Studio outputs, planner and benchmark results | mixed |
+| `Tools` | inspect public YouTube assets and prepare downloads | single URL, batch URLs, playlist URL, operation choice | `youtube_tools.py`, `transcript_service.py`, `yt-dlp`, `ffmpeg` | metadata previews, transcripts, audio/video/thumbnail artifacts, batch/playlist results | API-backed |
+| `Deployment` | understand how to run and deploy the app | none; in-app reference content | app shell guidance in `dashboard/app.py` | deployment instructions, repo/branch/secrets notes | static |
+
+```mermaid
+flowchart TD
+    A["Bundled CSV data"] --> B["Channel Analysis"]
+    A --> C["Historical benchmark context"]
+
+    S["Streamlit secrets / env"] --> K["src/utils/api_keys.py"]
+    K --> Y["YouTube Data API"]
+    K --> G["Gemini / OpenAI"]
+
+    Y --> D["Channel Insights"]
+    Y --> E["Outlier Finder"]
+    Y --> F["Ytuber"]
+    Y --> H["Tools"]
+    Y --> I["Thumbnails URL export"]
+
+    G --> J["Thumbnails generation"]
+    G --> L["Ytuber AI Studio"]
+    G --> M["Outlier AI research"]
+
+    D --> N["Snapshots + topic metrics + recommendations"]
+    E --> O["Outlier results + breakout charts"]
+    F --> P["Creator workspace modules"]
+    H --> Q["Prepared public asset downloads"]
+    J --> R["Generated thumbnail images"]
+    I --> T["Prepared thumbnail download"]
+```
+
+For the full section-by-section mechanics, see [Architecture](docs/ARCHITECTURE.md).
+
 ## Current V5 Architecture In One View
 
 ```mermaid
