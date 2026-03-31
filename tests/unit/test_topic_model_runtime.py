@@ -61,4 +61,87 @@ def test_apply_optional_topic_model_returns_rows(monkeypatch) -> None:
     assert result.success is True
     assert result.bundle_version == "2026.03.27"
     assert result.topic_rows[0]["model_topic_id"] == 18
-    assert result.topic_rows[0]["model_topic_label"] == "Packaging / Ctr / Thumbnail / Hooks"
+    assert result.topic_rows[0]["model_topic_label"] == "Packaging Strategy"
+
+
+def test_apply_optional_topic_model_filters_noisy_topic_terms(monkeypatch) -> None:
+    sample_df = pd.DataFrame(
+        [
+            {
+                "video_id": "v1",
+                "video_title": "PewDiePie TTS Challenge",
+                "video_description": "speedy highlights",
+                "video_tags": "yt|tts|speedy",
+            }
+        ]
+    )
+
+    class _FakeTopicModel:
+        def transform(self, texts):
+            assert len(texts) == 1
+            return [9], None
+
+        def get_topic(self, topic_id: int):
+            assert topic_id == 9
+            return [("pewdiepie", 0.5), ("yt", 0.4), ("tts", 0.3), ("speedy", 0.2), ("clip", 0.1)]
+
+    monkeypatch.setattr(
+        "src.services.topic_model_runtime.ensure_bertopic_artifact_ready",
+        lambda: ModelArtifactStatus(
+            state="ready",
+            enabled=True,
+            configured=True,
+            ready=True,
+            model_type="bertopic_global",
+            bundle_version="2026.03.27",
+            local_model_path="/tmp/bertopic_model.pkl",
+        ),
+    )
+    monkeypatch.setattr("src.services.topic_model_runtime._load_topic_model", lambda path: _FakeTopicModel())
+
+    result = apply_optional_topic_model(sample_df)
+
+    assert result.success is True
+    assert result.topic_rows[0]["model_topic_label"] == "Pewdiepie / Speedy"
+    assert result.topic_rows[0]["model_topic_label_raw"] == "9_pewdiepie_speedy"
+
+
+def test_apply_optional_topic_model_collapses_covid_cluster_to_theme_name(monkeypatch) -> None:
+    sample_df = pd.DataFrame(
+        [
+            {
+                "video_id": "v1",
+                "video_title": "COVID update",
+                "video_description": "pandemic vaccine coverage",
+                "video_tags": "covid|vaccine|virus",
+            }
+        ]
+    )
+
+    class _FakeTopicModel:
+        def transform(self, texts):
+            assert len(texts) == 1
+            return [4], None
+
+        def get_topic(self, topic_id: int):
+            assert topic_id == 4
+            return [("covid", 0.6), ("vaccine", 0.4), ("coronavirus", 0.3), ("virus", 0.2)]
+
+    monkeypatch.setattr(
+        "src.services.topic_model_runtime.ensure_bertopic_artifact_ready",
+        lambda: ModelArtifactStatus(
+            state="ready",
+            enabled=True,
+            configured=True,
+            ready=True,
+            model_type="bertopic_global",
+            bundle_version="2026.03.27",
+            local_model_path="/tmp/bertopic_model.pkl",
+        ),
+    )
+    monkeypatch.setattr("src.services.topic_model_runtime._load_topic_model", lambda path: _FakeTopicModel())
+
+    result = apply_optional_topic_model(sample_df)
+
+    assert result.success is True
+    assert result.topic_rows[0]["model_topic_label"] == "COVID Coverage"

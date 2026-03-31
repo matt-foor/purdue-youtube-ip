@@ -30,6 +30,41 @@ _MENTION_RE = re.compile(r"[@#][A-Za-z0-9_]+")
 _PUNCT_RE = re.compile(r"[^A-Za-z0-9\s]+")
 _MULTISPACE_RE = re.compile(r"\s+")
 _STANDALONE_DIGITS_RE = re.compile(r"\b\d+\b")
+_LABEL_NOISE_TOKENS = {
+    "video",
+    "videos",
+    "youtube",
+    "yt",
+    "short",
+    "shorts",
+    "official",
+    "channel",
+    "episode",
+    "episodes",
+    "stream",
+    "streaming",
+    "clip",
+    "clips",
+    "tts",
+}
+_DISPLAY_ACRONYMS = {
+    "ai": "AI",
+    "ctr": "CTR",
+    "fps": "FPS",
+    "ui": "UI",
+    "ux": "UX",
+}
+_THEME_RULES = (
+    ("Packaging Strategy", {"packaging", "thumbnail", "thumbnails", "ctr", "hook", "hooks", "title", "titles"}),
+    ("COVID Coverage", {"covid", "vaccine", "vaccines", "coronavirus", "virus", "pandemic"}),
+    ("Minecraft Gameplay", {"minecraft", "mod", "modded", "survival", "hardcore", "smp"}),
+    ("Streaming Culture", {"streamer", "streamers", "twitch", "livestream", "livestreams", "vod"}),
+    ("Fitness Training", {"workout", "workouts", "lifting", "muscle", "gym", "training"}),
+    ("Food Content", {"recipe", "recipes", "cooking", "cook", "food", "meal", "meals"}),
+    ("Tech Reviews", {"review", "reviews", "unboxing", "smartphone", "laptop", "gpu", "iphone", "android"}),
+    ("Science Explainers", {"science", "physics", "chemistry", "space", "nasa", "engineering"}),
+    ("AI Tools", {"ai", "chatgpt", "openai", "prompt", "prompts", "automation"}),
+)
 
 
 @dataclass(frozen=True)
@@ -88,6 +123,21 @@ def _load_topic_model(model_path: str):
     return BERTopic.load(model_path)
 
 
+def _format_keyword_for_display(keyword: str) -> str:
+    parts = [part for part in str(keyword or "").split("_") if part]
+    formatted_parts = [_DISPLAY_ACRONYMS.get(part, part.title()) for part in parts]
+    return " ".join(formatted_parts)
+
+
+def _presentation_theme_name(keywords: List[str]) -> str:
+    keyword_set = set(keywords)
+    for theme_name, family in _THEME_RULES:
+        overlap = keyword_set & family
+        if len(overlap) >= 2:
+            return theme_name
+    return ""
+
+
 def _topic_label_from_model(topic_model: Any, topic_id: int) -> tuple[str, str]:
     if topic_id == -1:
         return "-1_unassigned", "Unassigned"
@@ -95,11 +145,32 @@ def _topic_label_from_model(topic_model: Any, topic_id: int) -> tuple[str, str]:
         topic_terms = topic_model.get_topic(topic_id) or []
     except Exception:
         topic_terms = []
-    keywords = [str(term).strip().lower() for term, _score in topic_terms[:4] if str(term).strip()]
-    if not keywords:
+
+    cleaned_keywords: List[str] = []
+    for term, _score in topic_terms:
+        normalized = _normalize_text(str(term)).replace(" ", "_").strip("_")
+        if not normalized or normalized in _LABEL_NOISE_TOKENS:
+            continue
+        if any(
+            normalized == existing
+            or normalized in existing
+            or existing in normalized
+            for existing in cleaned_keywords
+        ):
+            continue
+        cleaned_keywords.append(normalized)
+        if len(cleaned_keywords) >= 4:
+            break
+
+    if not cleaned_keywords:
         return f"{topic_id}_topic", f"Topic {topic_id}"
-    raw = f"{topic_id}_" + "_".join(keywords)
-    human = " / ".join(keyword.replace("_", " ").title() for keyword in keywords)
+    raw = f"{topic_id}_" + "_".join(cleaned_keywords)
+    presentation_theme = _presentation_theme_name(cleaned_keywords)
+    if presentation_theme:
+        human = presentation_theme
+    else:
+        human_keywords = cleaned_keywords[:3]
+        human = " / ".join(_format_keyword_for_display(keyword) for keyword in human_keywords)
     return raw, human
 
 
