@@ -30,6 +30,10 @@ _MENTION_RE = re.compile(r"[@#][A-Za-z0-9_]+")
 _PUNCT_RE = re.compile(r"[^A-Za-z0-9\s]+")
 _MULTISPACE_RE = re.compile(r"\s+")
 _STANDALONE_DIGITS_RE = re.compile(r"\b\d+\b")
+_CPU_RETRY_ERROR_PATTERNS = (
+    "storage device not recognized: mps",
+    "don't know how to restore data location",
+)
 
 
 @dataclass(frozen=True)
@@ -82,10 +86,37 @@ def build_bertopic_inference_text(title: str, description: str = "", tags: str =
     return combined, token_count, is_sparse
 
 
+def _should_retry_topic_model_load_on_cpu(exc: Exception) -> bool:
+    message = str(exc or "").strip().lower()
+    if not message:
+        return False
+    if "mps" not in message:
+        return False
+    return any(pattern in message for pattern in _CPU_RETRY_ERROR_PATTERNS)
+
+
 def _load_topic_model(model_path: str):
     from bertopic import BERTopic
 
-    return BERTopic.load(model_path)
+    try:
+        return BERTopic.load(model_path)
+    except Exception as exc:
+        if not _should_retry_topic_model_load_on_cpu(exc):
+            raise
+
+    import torch
+
+    original_torch_load = torch.load
+
+    def _cpu_torch_load(*args, **kwargs):
+        kwargs.setdefault("map_location", "cpu")
+        return original_torch_load(*args, **kwargs)
+
+    torch.load = _cpu_torch_load
+    try:
+        return BERTopic.load(model_path)
+    finally:
+        torch.load = original_torch_load
 
 
 def _topic_label_from_model(topic_model: Any, topic_id: int) -> tuple[str, str]:

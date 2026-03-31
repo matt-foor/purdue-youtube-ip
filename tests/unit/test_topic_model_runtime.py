@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import sys
+from types import SimpleNamespace
+
 import pandas as pd
 
 from src.services.model_artifact_service import ModelArtifactStatus
-from src.services.topic_model_runtime import apply_optional_topic_model, build_bertopic_inference_text
+from src.services.topic_model_runtime import _load_topic_model, apply_optional_topic_model, build_bertopic_inference_text
 
 
 def test_build_bertopic_inference_text_applies_cleaning() -> None:
@@ -62,3 +65,32 @@ def test_apply_optional_topic_model_returns_rows(monkeypatch) -> None:
     assert result.bundle_version == "2026.03.27"
     assert result.topic_rows[0]["model_topic_id"] == 18
     assert result.topic_rows[0]["model_topic_label"] == "Packaging / Ctr / Thumbnail / Hooks"
+
+
+def test_load_topic_model_retries_with_cpu_for_mps_storage(monkeypatch) -> None:
+    load_calls = []
+
+    def _fake_torch_load(path, *args, **kwargs):
+        load_calls.append({"path": path, "map_location": kwargs.get("map_location")})
+        return {"ok": True}
+
+    fake_torch = SimpleNamespace(load=_fake_torch_load)
+
+    class _FakeBERTopic:
+        attempts = 0
+
+        @classmethod
+        def load(cls, model_path: str):
+            cls.attempts += 1
+            if cls.attempts == 1:
+                raise RuntimeError("torch.UntypedStorage(): Storage device not recognized: mps")
+            return fake_torch.load(model_path)
+
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setitem(sys.modules, "bertopic", SimpleNamespace(BERTopic=_FakeBERTopic))
+
+    result = _load_topic_model("/tmp/bertopic_model")
+
+    assert result == {"ok": True}
+    assert _FakeBERTopic.attempts == 2
+    assert load_calls == [{"path": "/tmp/bertopic_model", "map_location": "cpu"}]
