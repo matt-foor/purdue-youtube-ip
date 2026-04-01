@@ -269,7 +269,7 @@ def build_niche_blueprints(
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
         json.dump(blueprints, f, indent=2)
-    print(f"Niche blueprints saved → {output_path}")
+    print(f"Niche blueprints saved -> {output_path}")
     return blueprints
 
 
@@ -356,3 +356,6 @@ def get_blueprint_summary(blueprint: dict) -> dict:
         "avoid":     top_negative,
         "top_axes":  {ax: blueprint[ax] for ax in top_positive + top_negative if ax in blueprint},
     }
+
+if __name__ == "__main__":
+    build_niche_blueprints()
