@@ -1,38 +1,41 @@
-# YouTube IP V5
+# YouTube IP V6
 
-YouTube IP V5 is the presentation-ready, Streamlit-deployable version of a five-version YouTube creator intelligence project. It keeps the strongest workflows from V1 through V4, explains what was removed and why, and makes the current app understandable at both the product and architecture level from a single starting document.
+YouTube IP V6 is the current presentation-ready, Streamlit-deployable release. It carries forward the V5 product surface—seven sidebar destinations, public-only `Channel Insights`, bundled CSV benchmarking, and live YouTube / Gemini / OpenAI workflows—while refreshing the Streamlit entrypoint (`streamlit_app.py` → `dashboard/app.py`), built-in multipage navigation (`st.navigation`), dependency hardening (for example NumPy, PyArrow, and Google API client stacks on Windows and Cloud), and UI polish.
 
-Live app:
+**Live app (V6):**
 
-- [youtube-ip-v5.streamlit.app](https://youtube-ip-v5.streamlit.app/)
+- **[ip-youtube-creator-insight-2026.streamlit.app](https://ip-youtube-creator-insight-2026.streamlit.app/)**
+
+Earlier V5 deployment (historical): [youtube-ip-v5.streamlit.app](https://youtube-ip-v5.streamlit.app/)
 
 Quick jump:
 
 | If you want to understand... | Start here |
 | --- | --- |
-| current V5 runtime and page flows | [Architecture](docs/ARCHITECTURE.md) |
+| current runtime and page flows | [Architecture](docs/ARCHITECTURE.md) |
 | deployment targets, secrets, and version mapping | [Deployment And Versions](docs/DEPLOYMENT_AND_VERSIONS.md) |
-| the full project story and what changed from V1 to V5 | [Project Brief](docs/PROJECT_BRIEF.md) |
+| the full project story from V1 through V5 and into V6 | [Project Brief](docs/PROJECT_BRIEF.md) |
 | a GCP-friendly env template | [`.env.gcp.example`](.env.gcp.example) |
 
 ## At A Glance
 
 | Metric | Current Count / State |
 | --- | --- |
-| Deployed versions documented here | `5` |
-| Live Streamlit app links | `5` |
-| Current V5 sidebar destinations | `7` |
+| Deployed versions documented here | `6` (`V1`–`V6`) |
+| Live Streamlit app links (including historical) | `6` |
+| Current V6 sidebar destinations | `7` |
 | Current primary data paths | `2` |
 | Current Channel Insights topic modes | `2` |
 | Current live provider families | `3` (`YouTube`, `Gemini`, `OpenAI`) |
 | Optional model-artifact path | `1` (`BERTopic` beta) |
 
-## Current V5 In One Minute
+## Current V6 In One Minute
 
-- V5 runs on two core data paths: bundled GitHub CSVs for benchmarking and live API pulls for channel, outlier, tool, and thumbnail workflows.
-- `Channel Insights` is now public-only and supports two topic modes inside the same pipeline: default heuristics and optional BERTopic beta.
-- `Thumbnails`, `Ytuber`, and `Tools` keep the creative and AI-assisted workflows that stayed useful in deployment.
-- V5 intentionally removed the V4 `Assistant` and Google OAuth owner overlays to reduce operational weight and make the app easier to explain, deploy, and maintain.
+- V6 keeps the same two core data paths as V5: bundled GitHub CSVs for benchmarking and live API pulls for channel, outlier, tool, and thumbnail workflows.
+- `Channel Insights` remains public-only with two topic modes: default heuristics and optional BERTopic beta.
+- `Thumbnails`, `Ytuber`, and `Tools` continue the creative and AI-assisted workflows from V5.
+- V6 focuses on **reliable deployment**: explicit `run()` entry from `streamlit_app.py`, Streamlit’s **`st.navigation` / `pg.run()`** router, clearer dependency pins (`pyarrow`, `google-api-python-client`, `google-auth-httplib2`), and layout/CSS fixes for the global hero header.
+- V5 already removed the V4 `Assistant` and Google OAuth owner overlays; V6 does not bring them back.
 
 ## Why This Project Exists
 
@@ -44,9 +47,9 @@ The original goal of the project was simple: help small-to-mid-sized YouTube cre
 
 That core question stayed constant across every version. What changed was the way the app packaged the answer.
 
-## The Five-Version Story
+## Version Lineage (V1–V6)
 
-This is the shortest possible version-history view before the deeper tables below.
+Short history before the deeper tables below.
 
 ```mermaid
 flowchart LR
@@ -54,12 +57,14 @@ flowchart LR
     V2 --> V3["V3<br/>multi-page productization"]
     V3 --> V4["V4<br/>deepest intelligence layer"]
     V4 --> V5["V5<br/>cleanup + presentation-ready shell"]
+    V5 --> V6["V6<br/>deploy + router refresh"]
 
     V1 --- A1["Public metadata, BERTopic framing, recommendation concept"]
     V2 --- A2["Ytuber suite, workflow expansion, AI generation, deploy practicality"]
     V3 --- A3["Clear page architecture, stronger runtime docs, outlier workflow"]
     V4 --- A4["Channel Insights, Assistant, Google OAuth, owner analytics, BERTopic beta"]
     V5 --- A5["Assistant removed, OAuth removed, public-only insights, retained AI suite"]
+    V6 --- A6["st.navigation multipage, entry run loop, deps + header UX for Cloud/local"]
 ```
 
 ## Deployed Version History
@@ -70,24 +75,26 @@ flowchart LR
 | `V2` | [youtube-stats-ip-v2.streamlit.app](https://youtube-stats-ip-v2.streamlit.app/) | expand into a creator operating system | creator workflow framing, richer app shell, advanced Ytuber suite, deploy guidance | some modules were later split, simplified, or removed for maintainability | historical expansion |
 | `V3` | [youtube-ip-v3.streamlit.app](https://youtube-ip-v3.streamlit.app/) | turn the project into a clearer product | five-page product shell, strong runtime architecture, outlier workflow, better repo map | later versions added deeper insights and then simplified again | historical productization |
 | `V4` | [youtube-ip-v4.streamlit.app](https://youtube-ip-v4.streamlit.app/) | deepen intelligence and tracked-channel analysis | Channel Insights, sidebar Assistant, Google OAuth owner analytics, optional BERTopic beta | V5 removed the Assistant and Google OAuth to reduce deployment complexity | historical deep-intelligence release |
-| `V5` | [youtube-ip-v5.streamlit.app](https://youtube-ip-v5.streamlit.app/) | keep the best parts and document the journey | public-only Channel Insights, retained AI suite pages, Thumbnails rename, consolidated docs, optional BERTopic beta | lighter than V4, easier to reason about, presentation-ready documentation | current release |
+| `V5` | [youtube-ip-v5.streamlit.app](https://youtube-ip-v5.streamlit.app/) | keep the best parts and document the journey | public-only Channel Insights, retained AI suite pages, Thumbnails rename, consolidated docs, optional BERTopic beta | lighter than V4, easier to reason about, presentation-ready documentation | historical release |
+| `V6` | [ip-youtube-creator-insight-2026.streamlit.app](https://ip-youtube-creator-insight-2026.streamlit.app/) | ship a dependable Cloud + local runtime on top of V5 | Streamlit `st.navigation` router, `streamlit_app` → `run()` entry, explicit PyArrow / Google client deps, sidebar + hero layout fixes | product scope matches V5; focus is operational reliability | **current release** |
 
 ## What Changed Across Versions
 
-| Area | V1 | V2 | V3 | V4 | V5 |
-| --- | --- | --- | --- | --- | --- |
-| Core problem | creator strategy from public data | same | same | same | same |
-| Bundled dataset benchmarking | present | present | strong | present | present |
-| Creator workspace | early | expanded heavily | strong | present | present |
-| Outlier research | emerging | present in suite | strong standalone page | strong | strong |
-| Thumbnail generation | present | expanded | present | present | present |
-| Channel Insights tracked snapshots | absent | absent | absent | added | retained |
-| Sidebar Assistant | absent | absent | absent | added | removed |
-| Google OAuth / owner analytics | absent | absent | absent | added | removed |
-| Optional BERTopic model path | conceptual | conceptual | documented stack direction | added to runtime | retained |
-| Presentation-quality consolidated docs | basic | practical | stronger | strong | strongest |
+| Area | V1 | V2 | V3 | V4 | V5 | V6 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Core problem | creator strategy from public data | same | same | same | same | same |
+| Bundled dataset benchmarking | present | present | strong | present | present | present |
+| Creator workspace | early | expanded heavily | strong | present | present | present |
+| Outlier research | emerging | present in suite | strong standalone page | strong | strong | strong |
+| Thumbnail generation | present | expanded | present | present | present | present |
+| Channel Insights tracked snapshots | absent | absent | absent | added | retained | retained |
+| Sidebar Assistant | absent | absent | absent | added | removed | removed |
+| Google OAuth / owner analytics | absent | absent | absent | added | removed | removed |
+| Optional BERTopic model path | conceptual | conceptual | documented stack direction | added to runtime | retained | retained |
+| Presentation-quality consolidated docs | basic | practical | stronger | strong | strongest | strongest |
+| Streamlit multipage router (`st.navigation`) | — | — | — | — | custom / evolving | **built-in** |
 
-## What Survived Into V5
+## What Survived Into V6
 
 - Public-data-first creator intelligence stayed central from V1 onward.
 - Bundled CSV benchmarking survived as `Channel Analysis`.
@@ -99,17 +106,17 @@ flowchart LR
 
 ## What We Tried And Later Removed Or Simplified
 
-| Capability | Highest-Version Form | Why It Was Valuable | Why It Was Reduced Or Removed In V5 |
+| Capability | Highest-Version Form | Why It Was Valuable | Why It Was Reduced Or Removed In V5 / Unchanged In V6 |
 | --- | --- | --- | --- |
-| Sidebar `Assistant` | V4 | gave global help and retrieval-driven guidance across pages | added surface area, more maintenance, and more cognitive load than the lighter V5 shell needed |
-| Google OAuth + owner analytics overlay | V4 | enabled private metrics such as impressions, CTR, watch time, and retention | raised deploy complexity, secrets burden, and public-vs-owner workflow branching |
-| Heavier mixed recommendation UI | V3 / V4 | combined strategy guidance with creative tooling | overlapped with `Channel Analysis` and `Channel Insights`; V5 narrows page 3 to `Thumbnails` |
+| Sidebar `Assistant` | V4 | gave global help and retrieval-driven guidance across pages | added surface area, more maintenance, and more cognitive load than the lighter shell needed; still absent in V6 |
+| Google OAuth + owner analytics overlay | V4 | enabled private metrics such as impressions, CTR, watch time, and retention | raised deploy complexity, secrets burden, and public-vs-owner workflow branching; still absent in V6 |
+| Heavier mixed recommendation UI | V3 / V4 | combined strategy guidance with creative tooling | overlapped with `Channel Analysis` and `Channel Insights`; V5 narrows page 3 to `Thumbnails` (unchanged in V6) |
 | Broader “everything page” behavior in earlier suites | V2 | useful during exploration and experimentation | harder to document and reason about than clearly separated workflows |
 | Always-growing feature surface | V2-V4 | helped the team test many ideas quickly | eventually created duplication, deployment weight, and documentation drift |
 
-## Current V5 Product Surface
+## Current V6 Product Surface
 
-The current V5 sidebar order is:
+The current V6 sidebar order is:
 
 1. `Channel Analysis`
 2. `Channel Insights`
@@ -131,7 +138,7 @@ This is the high-level page map. The detailed runtime handoffs for each page liv
 | `Tools` | inspect and export public YouTube assets | YouTube metadata, transcripts, yt-dlp, ffmpeg | previews, transcript exports, audio/video/thumbnail downloads | API-backed |
 | `Deployment` | show deployment/setup guidance inside the app | static in-app instructions | repo, branch, secrets, deployment notes | static |
 
-## Current V5 Workflow Map
+## Current V6 Workflow Map
 
 This section is about the live app today, not the historical versions.
 
@@ -172,7 +179,7 @@ flowchart TD
     I --> T["Prepared thumbnail download"]
 ```
 
-In practice, V5 works as three layers:
+In practice, V6 works as three layers:
 
 - `Data`: bundled CSV benchmarking plus live provider/API calls
 - `Service`: normalization, scoring, topic assignment, artifact prep
@@ -202,15 +209,15 @@ For the detailed tab-by-tab and module-by-module behavior, see:
 - [Architecture: Ytuber](docs/ARCHITECTURE.md#ytuber)
 - [Architecture: Tools](docs/ARCHITECTURE.md#tools)
 
-## Current V5 Architecture In One View
+## Current V6 Architecture In One View
 
 ```mermaid
 flowchart TD
     A["Bundled GitHub CSVs<br/>data/youtube api data/*.csv"] --> B["streamlit_app.py"]
     U["User actions in the Streamlit UI"] --> B
-    B --> C["dashboard/app.py router"]
+    B --> C["dashboard/app.py run + st.navigation"]
     C --> D["sidebar navigation"]
-    D --> E["7 V5 page views"]
+    D --> E["7 V6 page views"]
 
     S["Streamlit secrets / env vars"] --> F["src/utils/api_keys.py"]
     F --> G["YouTube Data API v3"]
@@ -259,7 +266,7 @@ flowchart LR
     J --> K["Rendered Streamlit UI"]
 ```
 
-This is the live V5 runtime path today:
+This is the live V6 runtime path today:
 
 - bundled CSVs power `Channel Analysis`
 - live YouTube API calls power `Channel Insights`, `Outlier Finder`, `Ytuber`, `Tools`, and thumbnail URL export
@@ -270,7 +277,7 @@ For the deeper API/service explanation, see [Architecture](docs/ARCHITECTURE.md#
 
 ## Channel Insights: Where The Modeling Actually Lives
 
-`Channel Insights` is where the most advanced modeling work in V5 lands. Every refresh starts with the same public-channel workspace, then branches into one of two topic assignment modes:
+`Channel Insights` is where the most advanced modeling work lands in V5/V6. Every refresh starts with the same public-channel workspace, then branches into one of two topic assignment modes:
 
 - `Heuristic Topics`
   - default mode
@@ -305,25 +312,27 @@ For the full topic-mode branch, tab flow, and artifact-state details, see [Archi
 | Item | Value |
 | --- | --- |
 | Original repo | `matt-foor/purdue-youtube-ip` |
-| V5 source branch | `youtube-ip-v5` |
-| Deploy repo | `royayushkr/Youtube-IP-V5` |
-| Deploy branch | `main` |
+| V6 development branch | `youtube-ip-v6` |
+| V5 historical branch | `youtube-ip-v5` |
+| Public V6 live app | [ip-youtube-creator-insight-2026.streamlit.app](https://ip-youtube-creator-insight-2026.streamlit.app/) |
+| Earlier documented deploy (V5) | `royayushkr/Youtube-IP-V5` on `main` (see [Deployment And Versions](docs/DEPLOYMENT_AND_VERSIONS.md)) |
+| Main file path (Streamlit Cloud) | `streamlit_app.py` |
 | Required secret families | `YOUTUBE`, `GEMINI`, `OPENAI` |
 | Optional secret family | `MODEL_ARTIFACTS_*` for BERTopic beta |
 
 ```mermaid
 flowchart LR
-    A["GitHub repo"] --> B["V5 branch / deploy repo"]
+    A["GitHub repo"] --> B["V6 branch / fork"]
     B --> C["Streamlit or GCP environment"]
     C --> D["Secrets / env vars"]
     D --> E["streamlit_app.py"]
-    E --> F["dashboard/app.py"]
-    F --> G["7-page V5 app shell"]
+    E --> F["dashboard/app.py run + navigation"]
+    F --> G["7-page V6 app shell"]
 ```
 
 Deployment notes in one screen:
 
-- V5 stays public-only for `Channel Insights`
+- V6 stays **public-only** for `Channel Insights` (same as V5)
 - the app reads `st.secrets` first, then environment variables
 - BERTopic beta only activates when `MODEL_ARTIFACTS_ENABLED=true` and the manifest URL is configured
 - the GCP-oriented env template is [`.env.gcp.example`](.env.gcp.example), which is meant to be copied into Cloud Run, GCE, or Secret Manager-backed environment configuration rather than committed as a real secret file
@@ -338,15 +347,16 @@ The short version of the project story is:
 - `V2` expanded into a broader creator operating system
 - `V3` clarified the product shell and runtime structure
 - `V4` added the deepest intelligence layer with `Channel Insights`, Assistant, Google OAuth, and BERTopic beta
-- `V5` keeps the strongest workflows, removes the heaviest operational complexity, and documents the system clearly for presentation and deployment
+- `V5` kept the strongest workflows, removed the heaviest operational complexity, and documented the system clearly for presentation and deployment
+- `V6` is the **current** Streamlit release: same V5 capabilities, with a hardened router, dependencies, and deployment path ([live app](https://ip-youtube-creator-insight-2026.streamlit.app/))
 
-What V5 removed on purpose:
+What V5 removed on purpose (still true in V6):
 
 - sidebar `Assistant`
 - Google OAuth and owner-only analytics overlays
 - heavier mixed recommendation behavior on page 3
 
-What V5 kept on purpose:
+What V5 kept on purpose (still true in V6):
 
 - dataset benchmarking
 - public tracked-channel insights
@@ -355,11 +365,10 @@ What V5 kept on purpose:
 - the live `Ytuber` workspace
 - optional BERTopic beta modeling
 
-What V5 represents now:
+What V6 adds on top of V5:
 
-- a lighter public-facing app shell than V4
-- a clearer architecture for presentation, deployment, and handoff
-- a documented record of both the experiments that worked and the ones that were intentionally retired
+- dependable **local and Cloud** runs (correct Python wheels, PyArrow, Google client stack)
+- **Streamlit-native multipage** navigation and a single **`run()`** entry from `streamlit_app.py` so every rerun executes the router
 
 For the full narrative brief and retrospective, see [Project Brief](docs/PROJECT_BRIEF.md).
 
@@ -367,11 +376,11 @@ For the full narrative brief and retrospective, see [Project Brief](docs/PROJECT
 
 - [Architecture](docs/ARCHITECTURE.md) for the full runtime pipeline, page map, and topic-model integration details
 - [Deployment And Versions](docs/DEPLOYMENT_AND_VERSIONS.md) for branch targets, secrets evolution, and version/deployment comparisons
-- [Project Brief](docs/PROJECT_BRIEF.md) for the narrative project story, original goals, what changed, and what V5 represents now
+- [Project Brief](docs/PROJECT_BRIEF.md) for the narrative project story, original goals, what changed, and how V5 led to V6
 
 ## Ethics And Operating Principles
 
-The original V1 principles still apply in V5:
+The original V1 principles still apply in V6:
 
 - use public data responsibly
 - respect provider terms of service
