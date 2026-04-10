@@ -1,4 +1,4 @@
-# CreatorIQ — ML Backend Documentation
+ML Backend Documentation
 
 ---
 
