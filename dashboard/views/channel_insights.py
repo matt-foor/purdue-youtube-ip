@@ -239,8 +239,8 @@ def _inject_channel_insights_css() -> None:
                 radial-gradient(circle at top left, rgba(255, 0, 0, 0.08) 0%, transparent 30%),
                 linear-gradient(180deg, rgba(22, 33, 62, 0.95) 0%, rgba(15, 15, 35, 0.98) 100%);
             box-shadow: 0 16px 36px rgba(3, 6, 20, 0.32);
-            padding: 1rem 1.05rem;
-            min-height: 136px;
+            padding: 0.8rem 0.9rem;
+            min-height: 112px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -253,16 +253,21 @@ def _inject_channel_insights_css() -> None:
         }
         .ci-kpi-value {
             color: #F7F8FC;
-            font-size: clamp(26px, 2.3vw, 34px);
+            font-size: clamp(22px, 2vw, 30px);
             font-weight: 800;
             line-height: 1.05;
-            margin-top: 0.55rem;
+            margin-top: 0.45rem;
+            word-break: break-word;
+        }
+        .ci-kpi-value-theme {
+            font-size: clamp(16px, 1.45vw, 21px);
+            line-height: 1.18;
         }
         .ci-kpi-delta {
             color: #97A2C3;
             font-size: 12px;
             font-weight: 600;
-            margin-top: 0.7rem;
+            margin-top: 0.5rem;
         }
         .ci-kpi-delta-positive { color: #5EE6A8; }
         .ci-kpi-delta-negative { color: #FF8A8A; }
@@ -307,6 +312,7 @@ def _inject_channel_insights_css() -> None:
         .ci-kpi-label,
         .ci-kpi-delta { color: #6e6e73 !important; }
         .ci-kpi-value { color: #1d1d1f !important; }
+        .ci-kpi-value-theme { color: #1d1d1f !important; }
         .ci-kpi-delta-positive { color: #138a4b !important; }
         .ci-kpi-delta-negative { color: #b42318 !important; }
         .ci-empty {
@@ -698,26 +704,29 @@ def _render_summary_kpi_cards(summary: Dict[str, Any], deltas: Dict[str, Any]) -
         },
     ]
 
-    html_cards: List[str] = []
-    for card in cards:
+    cols = st.columns(len(cards), gap="small")
+    for idx, card in enumerate(cards):
         delta_text = card.get("delta")
         delta_class = "ci-kpi-delta"
+        value_class = "ci-kpi-value"
+        if card["label"] in {"Strongest Theme", "Weakest Theme"}:
+            value_class += " ci-kpi-value-theme"
         if delta_text:
             if str(delta_text).startswith("+"):
                 delta_class += " ci-kpi-delta-positive"
             elif str(delta_text).startswith("-"):
                 delta_class += " ci-kpi-delta-negative"
-        html_cards.append(
-            f"""
-            <div class="ci-kpi-card">
-                <div class="ci-kpi-label">{escape(str(card['label']))}</div>
-                <div class="ci-kpi-value">{escape(str(card['value']))}</div>
-                <div class="{delta_class}">{escape(str(delta_text or ''))}</div>
-            </div>
-            """
-        )
-
-    st.markdown(f"<div class='ci-kpi-grid'>{''.join(html_cards)}</div>", unsafe_allow_html=True)
+        with cols[idx]:
+            st.markdown(
+                f"""
+                <div class="ci-kpi-card">
+                    <div class="ci-kpi-label">{escape(str(card['label']))}</div>
+                    <div class="{value_class}">{escape(str(card['value']))}</div>
+                    <div class="{delta_class}">{escape(str(delta_text or ''))}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def _queue_outlier_finder_theme(theme: str, channel_title: str) -> None:
