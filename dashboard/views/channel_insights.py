@@ -1,16 +1,17 @@
 from __future__ import annotations
 
+import json
+import re
 from html import escape
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, List, Sequence
 
 import pandas as pd
+import requests
 import streamlit as st
 
 from dashboard.components.visualizations import (
-    kpi_row,
     plotly_bar_chart,
     plotly_line_chart,
-    section_header,
     show_plotly_chart,
     styled_dataframe,
     styled_keyword_chips,
@@ -23,6 +24,7 @@ from src.services.channel_insights_service import (
     refresh_channel_insights,
 )
 from src.services.model_artifact_service import get_bertopic_artifact_status
+from src.utils.api_keys import get_provider_key_count, run_with_provider_keys
 
 
 STATE_KEYS = (
@@ -32,6 +34,42 @@ STATE_KEYS = (
     "channel_insights_topic_mode",
     "channel_insights_error",
 )
+
+_TOPIC_LABEL_NOISE = {
+    "video",
+    "videos",
+    "youtube",
+    "yt",
+    "tts",
+    "short",
+    "shorts",
+    "official",
+    "channel",
+    "episode",
+    "episodes",
+    "clip",
+    "clips",
+    "summary",
+    "explained",
+}
+_TOPIC_THEME_RULES = (
+    ("Packaging Strategy", {"packaging", "thumbnail", "thumbnails", "ctr", "hook", "hooks", "title", "titles"}),
+    ("COVID Coverage", {"covid", "vaccine", "vaccines", "coronavirus", "virus", "pandemic"}),
+    ("Minecraft Gameplay", {"minecraft", "mod", "modded", "survival", "hardcore", "smp"}),
+    ("Streaming Culture", {"streamer", "streamers", "twitch", "livestream", "livestreams", "vod"}),
+    ("Fitness Training", {"workout", "workouts", "lifting", "muscle", "gym", "training"}),
+    ("Food Content", {"recipe", "recipes", "cooking", "cook", "food", "meal", "meals"}),
+    ("Tech Reviews", {"review", "reviews", "unboxing", "smartphone", "laptop", "gpu", "iphone", "android"}),
+    ("Science Explainers", {"science", "physics", "chemistry", "space", "nasa", "engineering"}),
+    ("AI Tools", {"ai", "chatgpt", "openai", "prompt", "prompts", "automation"}),
+)
+_DISPLAY_ACRONYMS = {
+    "ai": "AI",
+    "ctr": "CTR",
+    "fps": "FPS",
+    "ui": "UI",
+    "ux": "UX",
+}
 
 
 def _inject_channel_insights_css() -> None:
@@ -188,6 +226,65 @@ def _inject_channel_insights_css() -> None:
             font-size: 13px;
             line-height: 1.6;
         }
+        .ci-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 0.95rem;
+            margin: 0.2rem 0 0.8rem;
+        }
+        .ci-kpi-card {
+            border-radius: 22px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background:
+                radial-gradient(circle at top left, rgba(255, 0, 0, 0.08) 0%, transparent 30%),
+                linear-gradient(180deg, rgba(22, 33, 62, 0.95) 0%, rgba(15, 15, 35, 0.98) 100%);
+            box-shadow: 0 16px 36px rgba(3, 6, 20, 0.32);
+            padding: 1rem 1.05rem;
+            min-height: 136px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .ci-kpi-label {
+            color: #97A2C3;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+        .ci-kpi-value {
+            color: #F7F8FC;
+            font-size: clamp(26px, 2.3vw, 34px);
+            font-weight: 800;
+            line-height: 1.05;
+            margin-top: 0.55rem;
+        }
+        .ci-kpi-delta {
+            color: #97A2C3;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 0.7rem;
+        }
+        .ci-kpi-delta-positive { color: #5EE6A8; }
+        .ci-kpi-delta-negative { color: #FF8A8A; }
+        .ci-markdown-card ul {
+            margin: 0.1rem 0 0;
+            padding-left: 1.2rem;
+        }
+        .ci-markdown-card li {
+            margin-bottom: 0.45rem;
+            color: #424245;
+            line-height: 1.65;
+        }
+        @media (max-width: 1100px) {
+            .ci-kpi-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+        @media (max-width: 700px) {
+            .ci-kpi-grid {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
         /* Light glass (classes are unique to Channel Insights) */
         .ci-title { color: #1d1d1f !important; }
         .ci-subtitle { color: #424245 !important; }
@@ -202,6 +299,16 @@ def _inject_channel_insights_css() -> None:
         .ci-note { color: #424245 !important; }
         .ci-summary-value,
         .ci-theme-title { color: #1d1d1f !important; }
+        .ci-kpi-card {
+            background: rgba(255, 255, 255, 0.96) !important;
+            border: 1px solid rgba(0, 0, 0, 0.11) !important;
+            box-shadow: 0 16px 44px rgba(0, 0, 0, 0.1) !important;
+        }
+        .ci-kpi-label,
+        .ci-kpi-delta { color: #6e6e73 !important; }
+        .ci-kpi-value { color: #1d1d1f !important; }
+        .ci-kpi-delta-positive { color: #138a4b !important; }
+        .ci-kpi-delta-negative { color: #b42318 !important; }
         .ci-empty {
             border: 1px dashed rgba(0, 0, 0, 0.15) !important;
             background: rgba(255, 255, 255, 0.8) !important;
@@ -266,6 +373,351 @@ def _history_delta_text(value: float, suffix: str = "") -> str:
     if value < 0:
         return f"{value:.1f}{suffix}"
     return f"0.0{suffix}"
+
+
+def _normalize_topic_tokens(label: str) -> List[str]:
+    text = str(label or "").replace("/", " ")
+    raw_tokens = re.findall(r"[A-Za-z0-9_]+", text)
+    cleaned: List[str] = []
+    for token in raw_tokens:
+        normalized = token.strip().lower().replace("_", " ")
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+        if not normalized or normalized in _TOPIC_LABEL_NOISE:
+            continue
+        if normalized.endswith("ies") and len(normalized) > 4:
+            normalized = normalized[:-3] + "y"
+        elif normalized.endswith("s") and len(normalized) > 4 and not normalized.endswith("ss"):
+            normalized = normalized[:-1]
+        if normalized in _TOPIC_LABEL_NOISE:
+            continue
+        if any(
+            normalized == existing
+            or normalized in existing
+            or existing in normalized
+            for existing in cleaned
+        ):
+            continue
+        cleaned.append(normalized)
+    return cleaned
+
+
+def _format_topic_token(token: str) -> str:
+    parts = [part for part in str(token or "").split() if part]
+    return " ".join(_DISPLAY_ACRONYMS.get(part, part.title()) for part in parts)
+
+
+def _compact_topic_label(label: str) -> str:
+    text = str(label or "").strip()
+    if not text or text in {"N/A", "No Theme Yet", "No Pattern Yet", "Unassigned"}:
+        return text
+
+    tokens = _normalize_topic_tokens(text)
+    if not tokens:
+        return text
+
+    token_set = set(tokens)
+    for theme_name, family in _TOPIC_THEME_RULES:
+        if len(token_set & family) >= 2:
+            return theme_name
+
+    return _format_topic_token(tokens[0])
+
+
+def _display_topic_metrics_df(payload: Dict[str, Any]) -> pd.DataFrame:
+    topic_metrics_df = payload.get("topic_metrics_df", pd.DataFrame())
+    if topic_metrics_df.empty:
+        return topic_metrics_df
+    display_df = topic_metrics_df.copy()
+    display_df["topic_label"] = display_df["topic_label"].fillna("").astype(str).map(_compact_topic_label)
+    return display_df
+
+
+def _display_videos_df(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
+    display_df = df.copy()
+    if "primary_topic" in display_df.columns:
+        display_df["primary_topic"] = display_df["primary_topic"].fillna("").astype(str).map(_compact_topic_label)
+    return display_df
+
+
+def _preferred_text_provider() -> tuple[str, str] | tuple[None, None]:
+    if get_provider_key_count("gemini") > 0:
+        return "gemini", "gemini-2.5-flash"
+    if get_provider_key_count("openai") > 0:
+        return "openai", "gpt-4o-mini"
+    return None, None
+
+
+def _is_ai_retryable_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    retry_tokens = (
+        "rate limit",
+        "resource exhausted",
+        "too many requests",
+        "insufficient_quota",
+        "api key",
+        "401",
+        "403",
+        "429",
+        "500",
+        "503",
+        "overloaded",
+    )
+    return any(token in message for token in retry_tokens)
+
+
+def _gemini_generate_text(gemini_key: str, model: str, prompt: str) -> str:
+    endpoint = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+        f"?key={gemini_key}"
+    )
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    response = requests.post(endpoint, json=payload, timeout=90)
+    if response.status_code >= 400:
+        raise RuntimeError(f"Gemini text API error ({response.status_code}): {response.text[:500]}")
+
+    body = response.json()
+    texts: List[str] = []
+    for candidate in body.get("candidates", []):
+        for part in ((candidate.get("content", {}) or {}).get("parts", []) or []):
+            text = part.get("text")
+            if text:
+                texts.append(text)
+
+    if not texts:
+        raise RuntimeError("Gemini did not return text output.")
+    return "\n\n".join(texts)
+
+
+def _openai_generate_text(openai_key: str, model: str, prompt: str) -> str:
+    endpoint = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {openai_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are an advanced YouTube strategist supporting the "
+                    "YouTube IP creator analytics platform. "
+                    "Keep outputs concise, structured, and actionable."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.6,
+    }
+    response = requests.post(endpoint, headers=headers, json=payload, timeout=90)
+    if response.status_code >= 400:
+        raise RuntimeError(f"OpenAI text API error ({response.status_code}): {response.text[:500]}")
+    body = response.json()
+    choices = body.get("choices", [])
+    if not choices:
+        raise RuntimeError("OpenAI did not return any choices.")
+    message = choices[0].get("message", {}) or {}
+    content = message.get("content") or ""
+    if not content:
+        raise RuntimeError("OpenAI returned an empty message content.")
+    return content
+
+
+def _generate_text_with_provider_pool(provider: str, model: str, prompt: str) -> str:
+    provider_name = provider.lower().strip()
+    if provider_name == "gemini":
+        return run_with_provider_keys(
+            "gemini",
+            lambda key: _gemini_generate_text(key, model, prompt),
+            retryable_error=_is_ai_retryable_error,
+        )
+    if provider_name == "openai":
+        return run_with_provider_keys(
+            "openai",
+            lambda key: _openai_generate_text(key, model, prompt),
+            retryable_error=_is_ai_retryable_error,
+        )
+    raise RuntimeError(f"Unsupported text provider: {provider}")
+
+
+def _llm_cache_key(payload: Dict[str, Any], section: str) -> str:
+    summary = payload.get("summary", {})
+    return "::".join(
+        [
+            "channel_insights_llm",
+            section,
+            str(payload.get("channel", {}).get("channel_id", "")),
+            str(summary.get("snapshot_at", "")),
+            str(summary.get("topic_mode_used", "")),
+        ]
+    )
+
+
+def _serialize_records(records: Sequence[Dict[str, Any]], *, limit: int = 6, fields: Sequence[str] | None = None) -> str:
+    trimmed: List[Dict[str, Any]] = []
+    for row in list(records)[:limit]:
+        if fields is None:
+            trimmed.append(dict(row))
+        else:
+            trimmed.append({field: row.get(field) for field in fields})
+    return json.dumps(trimmed, ensure_ascii=True, default=str)
+
+
+def _generate_channel_insights_text(payload: Dict[str, Any], section: str, prompt: str) -> str:
+    cache_key = _llm_cache_key(payload, section)
+    cached_value = st.session_state.get(cache_key, "")
+    if cached_value:
+        return str(cached_value)
+
+    provider, model = _preferred_text_provider()
+    if not provider or not model:
+        return ""
+
+    try:
+        output = _generate_text_with_provider_pool(provider, model, prompt)
+    except Exception as exc:
+        st.session_state[cache_key] = f"__ERROR__::{exc}"
+        return ""
+
+    st.session_state[cache_key] = output
+    return output
+
+
+def _render_ai_card(title: str, body: str, *, empty_message: str = "") -> None:
+    if not body and not empty_message:
+        return
+    html_body = ""
+    if body:
+        bullet_items = []
+        paragraph_items = []
+        for raw_line in str(body).splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line.startswith(("- ", "* ")):
+                bullet_items.append(f"<li>{escape(line[2:].strip())}</li>")
+            else:
+                paragraph_items.append(f"<p class='ci-card-copy' style='margin:0.45rem 0 0;'>{escape(line)}</p>")
+        if bullet_items:
+            html_body += "<div class='ci-markdown-card'><ul>" + "".join(bullet_items) + "</ul></div>"
+        if paragraph_items:
+            html_body += "".join(paragraph_items)
+    else:
+        html_body = f"<div class='ci-card-copy'>{escape(empty_message)}</div>"
+
+    st.markdown(
+        f"""
+        <div class="ci-card">
+            <div class="ci-card-title">{escape(title)}</div>
+            {html_body}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _overview_actions_prompt(payload: Dict[str, Any], display_topic_metrics_df: pd.DataFrame) -> str:
+    summary = dict(payload.get("summary", {}))
+    summary["strongest_theme"] = _compact_topic_label(str(summary.get("strongest_theme", "")))
+    summary["weakest_theme"] = _compact_topic_label(str(summary.get("weakest_theme", "")))
+    topic_records = display_topic_metrics_df.to_dict(orient="records")
+    duration_records = payload.get("duration_metrics_df", pd.DataFrame()).to_dict(orient="records")
+    title_records = payload.get("title_pattern_metrics_df", pd.DataFrame()).to_dict(orient="records")
+    return (
+        "You are generating next-action recommendations for a YouTube creator analytics dashboard.\n"
+        "Return exactly 4 markdown bullet points. Each bullet must be one actionable sentence.\n"
+        "Use only the provided channel data. Mention concrete themes, formats, cadence, or packaging where relevant.\n\n"
+        f"Channel: {payload.get('channel', {}).get('channel_title', '')}\n"
+        f"Summary: {json.dumps(summary, ensure_ascii=True, default=str)}\n"
+        f"Topic Metrics: {_serialize_records(topic_records, fields=['topic_label', 'video_count', 'median_views_per_day', 'trend_score', 'outlier_count'])}\n"
+        f"Duration Metrics: {_serialize_records(duration_records, fields=['duration_bucket', 'median_views_per_day', 'videos'])}\n"
+        f"Title Pattern Metrics: {_serialize_records(title_records, fields=['title_pattern', 'median_views_per_day', 'videos'])}"
+    )
+
+
+def _topic_trends_prompt(payload: Dict[str, Any], display_topic_metrics_df: pd.DataFrame) -> str:
+    summary = dict(payload.get("summary", {}))
+    topic_records = display_topic_metrics_df.to_dict(orient="records")
+    return (
+        "You are writing a concise analyst note for the Topic Trends tab of a YouTube creator dashboard.\n"
+        "Return 3 short markdown bullet points. Focus on momentum, strongest themes, weak themes, and breakout potential.\n"
+        "Do not invent metrics; use only the data provided.\n\n"
+        f"Channel: {payload.get('channel', {}).get('channel_title', '')}\n"
+        f"Summary: {json.dumps(summary, ensure_ascii=True, default=str)}\n"
+        f"Topic Metrics: {_serialize_records(topic_records, limit=10, fields=['topic_label', 'video_count', 'median_views_per_day', 'trend_score', 'outlier_count', 'avg_engagement'])}"
+    )
+
+
+def _formats_prompt(payload: Dict[str, Any]) -> str:
+    summary = dict(payload.get("summary", {}))
+    duration_records = payload.get("duration_metrics_df", pd.DataFrame()).to_dict(orient="records")
+    title_records = payload.get("title_pattern_metrics_df", pd.DataFrame()).to_dict(orient="records")
+    day_records = payload.get("publish_day_metrics_df", pd.DataFrame()).to_dict(orient="records")
+    hour_records = payload.get("publish_hour_metrics_df", pd.DataFrame()).to_dict(orient="records")
+    return (
+        "You are writing a concise analyst note for the Formats & Patterns tab of a YouTube creator dashboard.\n"
+        "Return 3 short markdown bullet points. Focus on winning duration buckets, title patterns, and timing signals.\n"
+        "Do not invent metrics; use only the data provided.\n\n"
+        f"Channel: {payload.get('channel', {}).get('channel_title', '')}\n"
+        f"Summary: {json.dumps(summary, ensure_ascii=True, default=str)}\n"
+        f"Duration Metrics: {_serialize_records(duration_records, fields=['duration_bucket', 'median_views_per_day', 'videos', 'avg_engagement'])}\n"
+        f"Title Pattern Metrics: {_serialize_records(title_records, fields=['title_pattern', 'median_views_per_day', 'videos', 'avg_engagement'])}\n"
+        f"Publish Day Metrics: {_serialize_records(day_records, fields=['publish_day', 'median_views_per_day', 'videos'])}\n"
+        f"Publish Hour Metrics: {_serialize_records(hour_records, fields=['publish_hour', 'median_views_per_day', 'videos'])}"
+    )
+
+
+def _render_summary_kpi_cards(summary: Dict[str, Any], deltas: Dict[str, Any]) -> None:
+    cards = [
+        {
+            "label": "Upload Cadence",
+            "value": f"{summary.get('avg_upload_gap_days', 0):.1f} Days",
+            "delta": _history_delta_text(deltas.get("upload_gap_delta", 0), "d") if deltas else None,
+        },
+        {
+            "label": "Recent Outliers",
+            "value": _format_int(summary.get("recent_outlier_count", 0)),
+            "delta": _history_delta_text(deltas.get("outlier_count_delta", 0)) if deltas else None,
+        },
+        {
+            "label": "Strongest Theme",
+            "value": _compact_topic_label(str(summary.get("strongest_theme", "N/A"))),
+            "delta": None,
+        },
+        {
+            "label": "Weakest Theme",
+            "value": _compact_topic_label(str(summary.get("weakest_theme", "N/A"))),
+            "delta": None,
+        },
+        {
+            "label": "Median Views / Day",
+            "value": _format_int(summary.get("median_views_per_day", 0)),
+            "delta": _history_delta_text(deltas.get("median_views_per_day_delta", 0)) if deltas else None,
+        },
+    ]
+
+    html_cards: List[str] = []
+    for card in cards:
+        delta_text = card.get("delta")
+        delta_class = "ci-kpi-delta"
+        if delta_text:
+            if str(delta_text).startswith("+"):
+                delta_class += " ci-kpi-delta-positive"
+            elif str(delta_text).startswith("-"):
+                delta_class += " ci-kpi-delta-negative"
+        html_cards.append(
+            f"""
+            <div class="ci-kpi-card">
+                <div class="ci-kpi-label">{escape(str(card['label']))}</div>
+                <div class="ci-kpi-value">{escape(str(card['value']))}</div>
+                <div class="{delta_class}">{escape(str(delta_text or ''))}</div>
+            </div>
+            """
+        )
+
+    st.markdown(f"<div class='ci-kpi-grid'>{''.join(html_cards)}</div>", unsafe_allow_html=True)
 
 
 def _queue_outlier_finder_theme(theme: str, channel_title: str) -> None:
@@ -492,40 +944,15 @@ def _render_summary_action_row(payload: Dict[str, Any]) -> None:
         st.warning(topic_model_failure_reason or "BERTopic beta mode could not run for this snapshot, so the page fell back to heuristic topics.")
 
     deltas = payload.get("history_delta", {})
-    kpi_row(
-        [
-            {
-                "label": "Upload Cadence",
-                "value": f"{summary.get('avg_upload_gap_days', 0):.1f} Days",
-                "delta": _history_delta_text(deltas.get("upload_gap_delta", 0), "d") if deltas else None,
-            },
-            {
-                "label": "Recent Outliers",
-                "value": _format_int(summary.get("recent_outlier_count", 0)),
-                "delta": _history_delta_text(deltas.get("outlier_count_delta", 0)) if deltas else None,
-            },
-            {
-                "label": "Strongest Theme",
-                "value": summary.get("strongest_theme", "N/A"),
-            },
-            {
-                "label": "Weakest Theme",
-                "value": summary.get("weakest_theme", "N/A"),
-            },
-            {
-                "label": "Median Views / Day",
-                "value": _format_int(summary.get("median_views_per_day", 0)),
-                "delta": _history_delta_text(deltas.get("median_views_per_day_delta", 0)) if deltas else None,
-            },
-        ]
-    )
+    _render_summary_kpi_cards(summary, deltas)
 
 
 def _render_overview_tab(payload: Dict[str, Any]) -> None:
     summary = payload["summary"]
     recommendations = payload.get("recommendations", {})
-    topic_metrics_df = payload.get("topic_metrics_df", pd.DataFrame())
+    topic_metrics_df = _display_topic_metrics_df(payload)
     duration_metrics_df = payload.get("duration_metrics_df", pd.DataFrame())
+    ai_actions = _generate_channel_insights_text(payload, "overview_actions", _overview_actions_prompt(payload, topic_metrics_df))
 
     overview_cols = st.columns([1.15, 1], gap="large")
     with overview_cols[0]:
@@ -565,11 +992,18 @@ def _render_overview_tab(payload: Dict[str, Any]) -> None:
             unsafe_allow_html=True,
         )
 
-        actions = recommendations.get("actions", [])
-        st.markdown("**Recommended Next Actions**")
-        if actions:
+        fallback_actions = recommendations.get("actions", [])
+        if ai_actions:
+            _render_ai_card("Recommended Next Actions", ai_actions)
+        elif fallback_actions:
+            action_markup = "<ul class='ci-list'>" + "".join(f"<li>{escape(action)}</li>" for action in fallback_actions) + "</ul>"
             st.markdown(
-                "<ul class='ci-list'>" + "".join(f"<li>{escape(action)}</li>" for action in actions) + "</ul>",
+                f"""
+                <div class="ci-card">
+                    <div class="ci-card-title">Recommended Next Actions</div>
+                    {action_markup}
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
         else:
@@ -601,10 +1035,14 @@ def _render_overview_tab(payload: Dict[str, Any]) -> None:
 
 
 def _render_topic_trends_tab(payload: Dict[str, Any]) -> None:
-    topic_metrics_df = payload.get("topic_metrics_df", pd.DataFrame())
+    topic_metrics_df = _display_topic_metrics_df(payload)
     if topic_metrics_df.empty:
         st.markdown("<div class='ci-empty'>This channel needs more public uploads before theme clustering becomes stable.</div>", unsafe_allow_html=True)
         return
+
+    topic_insight_text = _generate_channel_insights_text(payload, "topic_trends", _topic_trends_prompt(payload, topic_metrics_df))
+    if topic_insight_text:
+        _render_ai_card("AI Topic Trend Insights", topic_insight_text)
 
     styled_dataframe(
         topic_metrics_df[
@@ -645,6 +1083,10 @@ def _render_formats_tab(payload: Dict[str, Any]) -> None:
     title_pattern_metrics_df = payload.get("title_pattern_metrics_df", pd.DataFrame())
     publish_day_metrics_df = payload.get("publish_day_metrics_df", pd.DataFrame())
     publish_hour_metrics_df = payload.get("publish_hour_metrics_df", pd.DataFrame())
+    format_insight_text = _generate_channel_insights_text(payload, "formats_patterns", _formats_prompt(payload))
+
+    if format_insight_text:
+        _render_ai_card("AI Format & Pattern Insights", format_insight_text)
 
     top_cols = st.columns(2, gap="large")
     with top_cols[0]:
@@ -678,8 +1120,8 @@ def _render_formats_tab(payload: Dict[str, Any]) -> None:
 
 
 def _render_outliers_tab(payload: Dict[str, Any]) -> None:
-    outliers_df = payload.get("outliers_df", pd.DataFrame())
-    underperformers_df = payload.get("underperformers_df", pd.DataFrame())
+    outliers_df = _display_videos_df(payload.get("outliers_df", pd.DataFrame()))
+    underperformers_df = _display_videos_df(payload.get("underperformers_df", pd.DataFrame()))
     outlier_cols = st.columns(2, gap="large")
     with outlier_cols[0]:
         st.markdown("**Recent Outliers**")
