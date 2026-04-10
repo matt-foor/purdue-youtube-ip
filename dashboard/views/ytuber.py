@@ -14,7 +14,8 @@ import streamlit as st
 try:
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
-except Exception:
+except (ImportError, ModuleNotFoundError, OSError):
+    # Do not use bare ``Exception`` — broken cffi/pyarrow would be misreported as "missing google-api-*".
     build = None
     HttpError = Exception
 
@@ -27,6 +28,7 @@ from dashboard.components.visualizations import (
     plotly_scatter,
     plotly_treemap,
     section_header,
+    show_plotly_chart,
     styled_dataframe,
     styled_keyword_chips,
 )
@@ -243,12 +245,6 @@ def _inject_ytuber_css() -> None:
     st.markdown(
         """
         <style>
-        [data-testid="stAppViewContainer"] {
-            background:
-                radial-gradient(circle at top center, rgba(63, 85, 127, 0.42) 0%, transparent 24%),
-                radial-gradient(circle at top left, rgba(139, 92, 246, 0.16) 0%, transparent 18%),
-                linear-gradient(180deg, #2A3446 0%, #1C2433 44%, #121A27 100%) !important;
-        }
         [data-testid="stAppViewBlockContainer"] {
             max-width: 1240px !important;
             padding-top: 1.35rem !important;
@@ -264,9 +260,9 @@ def _inject_ytuber_css() -> None:
             gap: 0.55rem;
             padding: 0.42rem 0.78rem;
             border-radius: 999px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.12);
-            color: #FFFFFF;
+            background: rgba(255, 0, 0, 0.12);
+            border: 1px solid rgba(255, 0, 0, 0.35);
+            color: #FF8888;
             font-size: 12px;
             letter-spacing: 0.10em;
             text-transform: uppercase;
@@ -276,34 +272,37 @@ def _inject_ytuber_css() -> None:
             width: 8px;
             height: 8px;
             border-radius: 999px;
-            background: linear-gradient(180deg, #A855F7, #8B5CF6);
-            box-shadow: 0 0 16px rgba(139, 92, 246, 0.55);
+            background: #FF0000;
+            box-shadow: 0 0 14px rgba(255, 0, 0, 0.5);
         }
         .ytuber-kicker {
             font-size: 12px;
             letter-spacing: 0.16em;
             text-transform: uppercase;
-            color: #94A3C7;
+            color: #00D4FF;
             margin-bottom: 0.5rem;
         }
         .ytuber-title {
+            font-family: "Inter", system-ui, sans-serif;
             font-size: clamp(32px, 4vw, 50px);
             line-height: 1.02;
             font-weight: 800;
             color: #FFFFFF;
             max-width: 760px;
             margin: 0 auto 0.7rem;
+            letter-spacing: -0.035em;
         }
         .ytuber-subtitle {
             font-size: 15px;
-            color: #D4DBEE;
+            color: #B0B0B0;
             max-width: 680px;
             margin: 0 auto;
+            font-weight: 500;
         }
         .ytuber-search-meta {
             margin-top: 0.9rem;
             font-size: 13px;
-            color: #B8C2DE;
+            color: #8b8ba8;
         }
         .ytuber-command-title {
             font-size: 18px;
@@ -314,19 +313,19 @@ def _inject_ytuber_css() -> None:
         }
         .ytuber-command-subtitle {
             font-size: 13px;
-            color: #AEB8D6;
+            color: #B0B0B0;
             margin-bottom: 0.85rem;
             text-align: center;
         }
         .ytuber-toolbar-note {
             font-size: 12px;
-            color: #AEB8D6;
+            color: #B0B0B0;
             margin-top: 0.45rem;
             text-align: center;
         }
         .ytuber-empty-copy {
             text-align: center;
-            color: #AEB8D6;
+            color: #8b8ba8;
             font-size: 13px;
             margin: 0.6rem 0 0.2rem;
         }
@@ -334,31 +333,32 @@ def _inject_ytuber_css() -> None:
             border-radius: 20px;
             padding: 0.95rem 1rem;
             margin-bottom: 1rem;
-            background: linear-gradient(180deg, rgba(45,58,86,0.92) 0%, rgba(29,38,57,0.96) 100%);
-            border: 1px solid rgba(255,255,255,0.10);
-            box-shadow: 0 14px 32px rgba(7, 12, 21, 0.25);
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.08) 0%, rgba(15, 15, 35, 0.92) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-left: 4px solid #FF0000;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
         }
         .ytuber-banner-title {
             font-size: 18px;
-            font-weight: 700;
+            font-weight: 800;
             color: #FFFFFF;
             margin-bottom: 0.25rem;
         }
         .ytuber-banner-meta {
             font-size: 13px;
-            color: #B7C1DD;
+            color: #00D4FF;
         }
         .ytuber-footer-card {
             padding: 0.48rem 0.62rem;
             border-radius: 14px;
-            background: rgba(255,255,255,0.045);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(15, 15, 35, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         .ytuber-footer-label {
             font-size: 10px;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            color: #8D9ABF;
+            color: #8b8ba8;
         }
         .ytuber-footer-value {
             font-size: 15px;
@@ -369,15 +369,15 @@ def _inject_ytuber_css() -> None:
         }
         .ytuber-footer-detail {
             font-size: 11px;
-            color: #B4BED9;
+            color: #B0B0B0;
             margin-top: 0.08rem;
         }
         .outlier-card {
             border-radius: 20px;
             overflow: hidden;
-            background: linear-gradient(180deg, rgba(40, 50, 70, 0.96) 0%, rgba(28, 37, 56, 0.99) 100%);
-            border: 1px solid rgba(255,255,255,0.09);
-            box-shadow: 0 14px 30px rgba(8, 12, 20, 0.24);
+            background: linear-gradient(180deg, rgba(22, 33, 62, 0.4) 0%, rgba(15, 15, 35, 0.95) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
             margin-bottom: 1rem;
         }
         .outlier-card img {
@@ -385,7 +385,7 @@ def _inject_ytuber_css() -> None:
             height: 180px;
             object-fit: cover;
             display: block;
-            background: rgba(255,255,255,0.04);
+            background: rgba(15, 15, 35, 0.5);
         }
         .outlier-card-body {
             padding: 0.9rem 1rem 1rem;
@@ -399,14 +399,14 @@ def _inject_ytuber_css() -> None:
         }
         .outlier-card-title {
             font-size: 16px;
-            font-weight: 700;
+            font-weight: 800;
             color: #FFFFFF;
             line-height: 1.35;
             margin-bottom: 0.2rem;
         }
         .outlier-card-channel {
             font-size: 12px;
-            color: #AFBAD8;
+            color: #00D4FF;
         }
         .outlier-score-badge {
             flex-shrink: 0;
@@ -414,9 +414,9 @@ def _inject_ytuber_css() -> None:
             text-align: center;
             padding: 0.4rem 0.6rem;
             border-radius: 16px;
-            background: rgba(139, 92, 246, 0.16);
-            border: 1px solid rgba(196, 181, 253, 0.22);
-            color: #FFFFFF;
+            background: rgba(255, 0, 0, 0.12);
+            border: 1px solid rgba(255, 0, 0, 0.35);
+            color: #FF6090;
         }
         .outlier-score-value {
             font-size: 20px;
@@ -427,7 +427,7 @@ def _inject_ytuber_css() -> None:
             font-size: 10px;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            color: #DCCFFF;
+            color: #8b8ba8;
             margin-top: 0.15rem;
         }
         .outlier-metrics {
@@ -439,15 +439,15 @@ def _inject_ytuber_css() -> None:
         .outlier-metric-pill {
             padding: 0.28rem 0.55rem;
             border-radius: 999px;
-            background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(22, 33, 62, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.12);
             font-size: 11px;
-            color: #D3DBEF;
+            color: #d0d0e0;
         }
         .outlier-reasons {
             margin: 0;
             padding-left: 1rem;
-            color: #E6ECFA;
+            color: #d0d0e0;
             font-size: 12px;
             line-height: 1.5;
         }
@@ -457,7 +457,7 @@ def _inject_ytuber_css() -> None:
         .outlier-link {
             margin-top: 0.7rem;
             display: inline-block;
-            color: #D8C7FF !important;
+            color: #00D4FF !important;
             font-size: 12px;
             font-weight: 600;
             text-decoration: none;
@@ -465,16 +465,16 @@ def _inject_ytuber_css() -> None:
         .ytuber-score-card {
             padding: 1rem 1.05rem;
             border-radius: 20px;
-            background: linear-gradient(180deg, rgba(40, 50, 70, 0.96) 0%, rgba(28, 37, 56, 0.99) 100%);
-            border: 1px solid rgba(255,255,255,0.09);
-            box-shadow: 0 14px 30px rgba(8, 12, 20, 0.24);
+            background: linear-gradient(160deg, rgba(22, 33, 62, 0.5) 0%, rgba(15, 15, 35, 0.92) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
             margin-bottom: 0.8rem;
         }
         .ytuber-score-label {
             font-size: 11px;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            color: #9BA7CB;
+            color: #8b8ba8;
             margin-bottom: 0.3rem;
         }
         .ytuber-score-head {
@@ -484,6 +484,7 @@ def _inject_ytuber_css() -> None:
             gap: 0.75rem;
         }
         .ytuber-score-value {
+            font-family: "IBM Plex Mono", "Inter", monospace;
             font-size: 38px;
             line-height: 1;
             font-weight: 800;
@@ -501,29 +502,29 @@ def _inject_ytuber_css() -> None:
             height: 10px;
             border-radius: 999px;
             overflow: hidden;
-            background: rgba(255,255,255,0.07);
+            background: rgba(22, 33, 62, 0.85);
             margin: 0.8rem 0 0.45rem;
         }
         .ytuber-score-bar span {
             display: block;
             height: 100%;
             border-radius: 999px;
-            background: linear-gradient(90deg, #8B5CF6 0%, #A855F7 55%, #60A5FA 100%);
+            background: linear-gradient(90deg, #FF0000 0%, #00D4FF 100%);
         }
         .ytuber-score-note {
             font-size: 12px;
-            color: #B9C4DE;
+            color: #B0B0B0;
         }
         .ytuber-part-card {
             padding: 0.68rem 0.78rem;
             border-radius: 14px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.07);
+            background: rgba(15, 15, 35, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             margin-bottom: 0.55rem;
         }
         .ytuber-part-label {
             font-size: 11px;
-            color: #9BA7CB;
+            color: #8b8ba8;
             margin-bottom: 0.1rem;
         }
         .ytuber-part-value {
@@ -532,98 +533,28 @@ def _inject_ytuber_css() -> None:
             color: #FFFFFF;
         }
         .ytuber-section-surface {
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(15, 15, 35, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 22px;
             padding: 1rem 1rem 0.5rem;
             margin-bottom: 1rem;
+            backdrop-filter: blur(8px);
         }
         .yt-section-header {
             font-size: 20px !important;
             margin-top: 1.1rem !important;
             margin-bottom: 0.45rem !important;
         }
-        .yt-section-underline {
-            display: none !important;
-        }
-        .yt-card,
-        .metric-card {
-            background: linear-gradient(180deg, rgba(41, 52, 73, 0.95) 0%, rgba(28, 37, 55, 0.98) 100%) !important;
-            border: 1px solid rgba(255,255,255,0.09) !important;
-            box-shadow: 0 14px 30px rgba(8, 12, 20, 0.30) !important;
-        }
-        .keyword-chip {
-            background: linear-gradient(90deg, rgba(139, 92, 246, 0.22), rgba(96, 165, 250, 0.14)) !important;
-            border: 1px solid rgba(255,255,255,0.14) !important;
-        }
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 0.45rem;
-            border-bottom: none !important;
-            background: rgba(255,255,255,0.04);
-            padding: 0.35rem;
-            border-radius: 999px;
-            margin-bottom: 0.85rem;
-        }
-        .stTabs [data-baseweb="tab-highlight"] {
-            display: none;
-        }
-        .stTabs [data-baseweb="tab"] {
-            height: auto;
-            border-radius: 999px;
-            padding: 0.42rem 0.95rem;
-            color: #C5CEE6;
-            border: 1px solid transparent;
-        }
-        .stTabs [aria-selected="true"] {
-            background: rgba(139, 92, 246, 0.16) !important;
-            border-color: rgba(196, 181, 253, 0.28) !important;
-        }
-        .stTabs [aria-selected="true"] p {
-            color: #FFFFFF !important;
-            font-weight: 600 !important;
-        }
-        .stButton > button {
-            background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03)) !important;
-            border: 1px solid rgba(255,255,255,0.14) !important;
-            color: #FFFFFF !important;
-            box-shadow: none !important;
-        }
-        .stButton > button:hover {
-            background: linear-gradient(180deg, rgba(255,255,255,0.11), rgba(255,255,255,0.05)) !important;
-            border-color: rgba(255,255,255,0.24) !important;
-            transform: translateY(-1px);
-        }
-        button[kind="primary"] {
-            background: linear-gradient(90deg, #8B5CF6, #A855F7) !important;
-            border-color: rgba(196, 181, 253, 0.28) !important;
-            box-shadow: 0 12px 24px rgba(83, 44, 184, 0.28) !important;
-        }
-        button[kind="primary"]:hover {
-            background: linear-gradient(90deg, #9C74F8, #B566FA) !important;
-            border-color: rgba(196, 181, 253, 0.38) !important;
-        }
-        .stTextInput > div > div > input,
-        .stTextArea textarea,
-        .stSelectbox > div > div,
-        .stDateInput > div > div,
-        .stMultiSelect > div > div {
-            background-color: rgba(38, 48, 71, 0.92) !important;
-            border: 1px solid rgba(255,255,255,0.12) !important;
-        }
-        .stTextInput > div > div > input {
-            min-height: 3.05rem !important;
-            border-radius: 14px !important;
-        }
         div[data-testid="stTextInput"]:has(input[aria-label="Search Channel"]) [data-baseweb="input"] {
             min-height: 3.5rem !important;
             border-radius: 999px !important;
-            border: 1px solid rgba(255,255,255,0.14) !important;
-            background: linear-gradient(180deg, rgba(46, 57, 81, 0.96) 0%, rgba(37, 47, 69, 0.99) 100%) !important;
-            box-shadow: 0 12px 26px rgba(10, 15, 24, 0.16) !important;
+            border: 1px solid rgba(255, 255, 255, 0.14) !important;
+            background: rgba(15, 15, 35, 0.85) !important;
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25) !important;
         }
         div[data-testid="stTextInput"]:has(input[aria-label="Search Channel"]) [data-baseweb="input"]:focus-within {
-            border-color: rgba(139, 92, 246, 0.45) !important;
-            box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.24), 0 16px 34px rgba(10, 15, 24, 0.20) !important;
+            border-color: rgba(0, 212, 255, 0.55) !important;
+            box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2), 0 12px 36px rgba(0, 0, 0, 0.35) !important;
         }
         div[data-testid="stTextInput"]:has(input[aria-label="Search Channel"]) input {
             font-size: 16px !important;
@@ -635,7 +566,75 @@ def _inject_ytuber_css() -> None:
         }
         [data-testid="stToggle"] label p,
         [data-testid="stToggle"] small {
-            color: #C5CEE6 !important;
+            color: #d0d0e0 !important;
+        }
+        /* Light shell — Ytuber: dark ink on mesh (overrides dark-theme rules above) */
+        .ytuber-title,
+        .ytuber-command-title,
+        .ytuber-banner-title { color: #1d1d1f !important; }
+        .ytuber-subtitle,
+        .ytuber-command-subtitle,
+        .ytuber-toolbar-note,
+        .ytuber-empty-copy,
+        .ytuber-search-meta { color: #424245 !important; }
+        .ytuber-kicker { color: #b3000c !important; }
+        .ytuber-footer-card {
+            background: rgba(255, 255, 255, 0.96) !important;
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+        }
+        .ytuber-footer-label { color: #424245 !important; }
+        .ytuber-footer-value { color: #1d1d1f !important; }
+        .ytuber-footer-detail { color: #6e6e73 !important; }
+        div[data-testid="stTextInput"]:has(input[aria-label="Search Channel"]) [data-baseweb="input"] {
+            background: #ffffff !important;
+            border: 1px solid rgba(0, 0, 0, 0.14) !important;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06) !important;
+        }
+        div[data-testid="stTextInput"]:has(input[aria-label="Search Channel"]) input {
+            color: #1d1d1f !important;
+        }
+        [data-testid="stToggle"] label p,
+        [data-testid="stToggle"] small {
+            color: #1d1d1f !important;
+        }
+        .ytuber-section-surface {
+            background: rgba(255, 255, 255, 0.94) !important;
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+        }
+        /* Ytuber page: ensure help/info icon uses visible bulb style */
+        [data-testid*="stTooltipHoverTarget"] button,
+        button[aria-label*="help" i],
+        button[aria-label*="info" i],
+        [data-testid*="stTooltipIcon"],
+        [data-testid*="stHelpIcon"] {
+            width: 24px !important;
+            height: 24px !important;
+            min-width: 24px !important;
+            min-height: 24px !important;
+            border-radius: 999px !important;
+            background: linear-gradient(165deg, #fffaf0, #fff3d9) !important;
+            border: 1px solid rgba(230, 0, 18, 0.4) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+            color: transparent !important;
+            position: relative !important;
+        }
+        [data-testid*="stTooltipHoverTarget"] button svg,
+        button[aria-label*="help" i] svg,
+        button[aria-label*="info" i] svg,
+        [data-testid*="stTooltipIcon"] svg,
+        [data-testid*="stHelpIcon"] svg { opacity: 0 !important; }
+        [data-testid*="stTooltipHoverTarget"] button::before,
+        button[aria-label*="help" i]::before,
+        button[aria-label*="info" i]::before,
+        [data-testid*="stTooltipIcon"]::before,
+        [data-testid*="stHelpIcon"]::before {
+            content: "💡";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -54%);
+            font-size: 13px;
+            line-height: 1;
         }
         @media (max-width: 900px) {
             .ytuber-title {
@@ -1437,10 +1436,11 @@ def _queue_ai_studio_prefill(task: str, brief: str) -> None:
 
 
 def _queue_outlier_finder_page(prefill_query: str, note: str) -> None:
-    st.session_state["app_page"] = "Outlier Finder"
     st.session_state["outlier_page_query"] = prefill_query.strip()
     st.session_state["outlier_page_prefill_note"] = note
-    st.rerun()
+    from dashboard.navigation_support import switch_to_outlier_finder
+
+    switch_to_outlier_finder()
 
 
 def _render_outliers_shortcut(channel_df: pd.DataFrame, channel_title: str) -> None:
@@ -1452,10 +1452,10 @@ def _render_outliers_shortcut(channel_df: pd.DataFrame, channel_title: str) -> N
         """
         <div class="yt-card" style="padding:1.15rem 1.2rem;">
             <div style="font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#B8C1DA;margin-bottom:0.3rem;">Standalone Research Tool</div>
-            <div style="font-size:24px;font-weight:800;color:#FFFFFF;line-height:1.15;margin-bottom:0.45rem;">
+            <div style="font-size:24px;font-weight:800;color:#f8fafc;line-height:1.15;margin-bottom:0.45rem;">
                 Discover Breakout Videos In A Dedicated Research Workspace.
             </div>
-            <div style="font-size:14px;color:#C8D1EA;max-width:760px;">
+            <div style="font-size:14px;color:#B0B0B0;max-width:760px;">
                 Search any niche, tighten the filters, and move into a standalone page built for result-first scanning, breakout snapshots, structured AI research, and methodology notes.
             </div>
         </div>
@@ -1470,13 +1470,13 @@ def _render_outliers_shortcut(channel_df: pd.DataFrame, channel_title: str) -> N
 
     action_cols = st.columns([1.3, 1.1])
     with action_cols[0]:
-        if st.button("Open Outlier Finder", type="primary", use_container_width=True):
+        if st.button("Open Outlier Finder", type="primary"):
             _queue_outlier_finder_page(
                 prefill_query=suggested_query,
                 note=f"Prefilled from {channel_title}'s strongest recurring keywords. Adjust the niche query before running the scan.",
             )
     with action_cols[1]:
-        if st.button("Open With Current Channel Name", use_container_width=True):
+        if st.button("Open With Current Channel Name"):
             _queue_outlier_finder_page(
                 prefill_query=channel_title,
                 note=f"Prefilled with the current channel name: {channel_title}. Replace it with a niche phrase if you want broader research.",
@@ -1485,8 +1485,8 @@ def _render_outliers_shortcut(channel_df: pd.DataFrame, channel_title: str) -> N
     st.markdown(
         """
         <div class="yt-card" style="padding:0.9rem 1rem;">
-            <div style="font-size:13px;color:#FFFFFF;font-weight:700;margin-bottom:0.35rem;">Why the standalone page is better for this job</div>
-            <div style="font-size:13px;color:#C4CEE6;line-height:1.55;">
+            <div style="font-size:13px;color:#1d1d1f;font-weight:700;margin-bottom:0.35rem;">Why the standalone page is better for this job</div>
+            <div style="font-size:13px;color:#424245;line-height:1.55;">
                 It puts results first, then the breakout pattern snapshot, then structured AI research. It also supports stricter language filtering, exact versus broad matching, subscriber ranges, and cleaner niche-scanning controls.
             </div>
         </div>
@@ -1644,7 +1644,63 @@ def _render_overview(channel_df: pd.DataFrame) -> None:
             title="Uploads and Views",
             secondary_y=["views"],
         )
-        st.plotly_chart(fig, use_container_width=True)
+        # Improve dual-axis readability for non-technical users.
+        fig.update_layout(
+            hovermode="x unified",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1.0,
+                bgcolor="rgba(255,255,255,0.96)",
+                bordercolor="rgba(0,0,0,0.14)",
+                borderwidth=1,
+                font=dict(size=13, color="#111216"),
+            ),
+            margin=dict(l=72, r=84, t=78, b=72),
+        )
+        fig.update_xaxes(
+            title_text="Publish Month",
+            tickformat="%Y",
+            hoverformat="%b %Y",
+            showline=True,
+            linewidth=1.2,
+            linecolor="rgba(0,0,0,0.28)",
+            gridcolor="rgba(0,0,0,0.07)",
+            tickfont=dict(size=13, color="#1d1d1f"),
+            title_font=dict(size=15, color="#111216"),
+        )
+        fig.update_yaxes(
+            title_text="Videos",
+            secondary_y=False,
+            tickfont=dict(size=13, color="#111216"),
+            title_font=dict(size=15, color="#111216"),
+            gridcolor="rgba(0,0,0,0.11)",
+            rangemode="tozero",
+        )
+        fig.update_yaxes(
+            title_text="Views",
+            secondary_y=True,
+            tickformat="~s",
+            tickfont=dict(size=13, color="#111216"),
+            title_font=dict(size=15, color="#111216"),
+            showgrid=False,
+            rangemode="tozero",
+        )
+        fig.update_traces(
+            selector=dict(name="Videos"),
+            mode="lines",
+            line=dict(color="#FF0033", width=2.6),
+            hovertemplate="Month: %{x|%b %Y}<br>Videos: %{y:~s}<extra></extra>",
+        )
+        fig.update_traces(
+            selector=dict(name="Views"),
+            mode="lines",
+            line=dict(color="#00A6FF", width=2.6),
+            hovertemplate="Month: %{x|%b %Y}<br>Views: %{y:~s}<extra></extra>",
+        )
+        show_plotly_chart(fig)
 
     with right:
         section_header("Top 12 Videos", icon="⭐")
@@ -1708,7 +1764,7 @@ def _render_channel_audit(channel_df: pd.DataFrame) -> None:
         st.markdown(
             f"""
             <div class="yt-card" style="padding:0.5rem 0.75rem;margin-bottom:0.35rem;">
-                <span style="font-size:12px;color:#FFFFFF;">{item}</span>
+                <span style="font-size:12px;color:#d0d0e0;">{item}</span>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1730,7 +1786,7 @@ def _render_channel_audit(channel_df: pd.DataFrame) -> None:
                     title="Rising Topics in the Last 60 Days",
                     horizontal=True,
                 )
-                st.plotly_chart(rising_fig, use_container_width=True)
+                show_plotly_chart(rising_fig)
 
 
 def _render_keyword_intel(channel_df: pd.DataFrame) -> List[str]:
@@ -1754,7 +1810,7 @@ def _render_keyword_intel(channel_df: pd.DataFrame) -> List[str]:
             values="score",
             title="Keyword Opportunity Treemap",
         )
-        st.plotly_chart(tree_fig, use_container_width=True)
+        show_plotly_chart(tree_fig)
 
         bar_fig = plotly_bar_chart(
             intel.head(20).sort_values("score", ascending=False),
@@ -1763,7 +1819,7 @@ def _render_keyword_intel(channel_df: pd.DataFrame) -> List[str]:
             title="Top Keyword Opportunities",
             horizontal=True,
         )
-        st.plotly_chart(bar_fig, use_container_width=True)
+        show_plotly_chart(bar_fig)
     return intel["keyword"].tolist()
 
 
@@ -1909,7 +1965,7 @@ def _render_outliers_ai_panel(result_frame: pd.DataFrame, current_channel_title:
 
     source_rows = _build_outlier_prompt_rows(result_frame)
     button_cols = st.columns(2)
-    if button_cols[0].button("Summarize Outlier Patterns", use_container_width=True):
+    if button_cols[0].button("Summarize Outlier Patterns"):
         prompt = (
             "You are a YouTube strategist analyzing a scanned cohort of public outlier videos.\n\n"
             f"Creator context: {current_channel_title or 'General creator'}\n"
@@ -1929,7 +1985,7 @@ def _render_outliers_ai_panel(result_frame: pd.DataFrame, current_channel_title:
             except Exception as exc:
                 st.error(f"AI summary failed: {exc}")
 
-    if button_cols[1].button("Generate Content Angles", use_container_width=True):
+    if button_cols[1].button("Generate Content Angles"):
         prompt = (
             "You are a YouTube strategist turning public outlier findings into actionable content ideas.\n\n"
             f"Creator context: {current_channel_title or 'General creator'}\n"
@@ -2151,9 +2207,9 @@ def _render_outliers_finder(current_channel_title: str) -> None:
             y="outlier_score",
             size="views",
             color="age_bucket",
-            title="Outlier Score vs Channel Size (log10 subscribers + 1)",
+            title="Outlier Score vs Channel Size (log scale)",
         )
-        st.plotly_chart(scatter_fig, use_container_width=True)
+        show_plotly_chart(scatter_fig)
     with chart_cols[1]:
         channel_breakout = (
             sorted_frame.groupby("channel_title", dropna=False)
@@ -2169,7 +2225,7 @@ def _render_outliers_finder(current_channel_title: str) -> None:
             title="Channels Producing the Most Outliers",
             horizontal=True,
         )
-        st.plotly_chart(channel_fig, use_container_width=True)
+        show_plotly_chart(channel_fig)
 
     keyword_counter: Counter = Counter()
     for title in sorted_frame.head(20)["video_title"].tolist():
@@ -2299,7 +2355,7 @@ def _render_competitor_benchmark(
         height=90,
     )
 
-    run = st.button("Run Competitor Benchmark", use_container_width=True)
+    run = st.button("Run Competitor Benchmark")
     state_key = f"ytuber_competitor_state_{channel_id}"
 
     if run:
@@ -2428,7 +2484,7 @@ def _render_competitor_benchmark(
         }
         cats = ["Videos", "Total Views", "Avg Views", "Median Engagement"]
         radar_fig = plotly_radar_chart(cats, radar_series, "Competitor Shape")
-        st.plotly_chart(radar_fig, use_container_width=True)
+        show_plotly_chart(radar_fig)
 
         bar_fig = plotly_bar_chart(
             bdf.head(10),
@@ -2437,7 +2493,7 @@ def _render_competitor_benchmark(
             title="Total Views by Competitor",
             horizontal=True,
         )
-        st.plotly_chart(bar_fig, use_container_width=True)
+        show_plotly_chart(bar_fig)
 
     if not competitor_trend_df.empty:
         st.markdown("**Competitor Trend Radar**")
@@ -2454,7 +2510,7 @@ def _render_competitor_benchmark(
                     title="Rising Competitor Topics",
                     horizontal=True,
                 )
-                st.plotly_chart(comp_trend_fig, use_container_width=True)
+                show_plotly_chart(comp_trend_fig)
 
     if not keyword_gap_df.empty:
         st.markdown("**Keyword gaps vs competitors**")
@@ -2465,7 +2521,7 @@ def _render_competitor_benchmark(
             title="Keywords Competitors Use More Often",
             horizontal=True,
         )
-        st.plotly_chart(gap_fig, use_container_width=True)
+        show_plotly_chart(gap_fig)
         styled_keyword_chips(keyword_gap_df["keyword"].head(8).tolist())
 
     insights = state.get("insights", "")
@@ -2493,7 +2549,7 @@ def _render_trend_radar(channel_df: pd.DataFrame) -> None:
             title="Rising Keywords",
             horizontal=True,
         )
-        st.plotly_chart(rising_fig, use_container_width=True)
+        show_plotly_chart(rising_fig)
 
     if not falling.empty:
         falling_fig = plotly_bar_chart(
@@ -2503,7 +2559,7 @@ def _render_trend_radar(channel_df: pd.DataFrame) -> None:
             title="Falling Keywords",
             horizontal=True,
         )
-        st.plotly_chart(falling_fig, use_container_width=True)
+        show_plotly_chart(falling_fig)
 
 
 def _render_content_planner(channel_df: pd.DataFrame) -> None:
@@ -2567,7 +2623,7 @@ def _render_content_planner(channel_df: pd.DataFrame) -> None:
             y="avg_views",
             title="Average Views by Day",
         )
-        st.plotly_chart(fig_day_views, use_container_width=True)
+        show_plotly_chart(fig_day_views)
     with day_cols[1]:
         fig_day_uploads = plotly_bar_chart(
             day_perf,
@@ -2575,7 +2631,7 @@ def _render_content_planner(channel_df: pd.DataFrame) -> None:
             y="videos",
             title="Uploads by Day",
         )
-        st.plotly_chart(fig_day_uploads, use_container_width=True)
+        show_plotly_chart(fig_day_uploads)
 
     hour_cols = st.columns(2)
     with hour_cols[0]:
@@ -2585,7 +2641,7 @@ def _render_content_planner(channel_df: pd.DataFrame) -> None:
             y="avg_views",
             title="Average Views by Hour (UTC)",
         )
-        st.plotly_chart(fig_hour_views, use_container_width=True)
+        show_plotly_chart(fig_hour_views)
     with hour_cols[1]:
         fig_hour_uploads = plotly_bar_chart(
             hour_perf,
@@ -2593,7 +2649,7 @@ def _render_content_planner(channel_df: pd.DataFrame) -> None:
             y="videos",
             title="Uploads by Hour (UTC)",
         )
-        st.plotly_chart(fig_hour_uploads, use_container_width=True)
+        show_plotly_chart(fig_hour_uploads)
 
     heatmap_source = (
         channel_df.groupby(["publish_day", "publish_hour"], dropna=False)
@@ -2616,7 +2672,7 @@ def _render_content_planner(channel_df: pd.DataFrame) -> None:
             z="avg_views",
             title="Day x Hour Average Views",
         )
-        st.plotly_chart(heat_views, use_container_width=True)
+        show_plotly_chart(heat_views)
     with heat_cols[1]:
         heat_uploads = plotly_heatmap(
             heatmap_source,
@@ -2625,7 +2681,7 @@ def _render_content_planner(channel_df: pd.DataFrame) -> None:
             z="videos",
             title="Day x Hour Upload Density",
         )
-        st.plotly_chart(heat_uploads, use_container_width=True)
+        show_plotly_chart(heat_uploads)
 
     top_topics = _top_keywords(channel_df, top_n=12)
     if top_topics:
@@ -2660,10 +2716,10 @@ def _render_content_planner(channel_df: pd.DataFrame) -> None:
             st.markdown(
                 f"""
                 <div class="yt-card" style="padding:0.6rem 0.75rem;margin-bottom:0.6rem;">
-                    <div style="font-size:11px;color:#B0B0B0;">{row['week']}</div>
-                    <div style="font-size:16px;font-weight:600;color:#FFFFFF;">{row['publish_date_utc']}</div>
-                    <div style="font-size:12px;color:#B0B0B0;margin-bottom:0.15rem;">{row['publish_time_utc']} UTC</div>
-                    <div style="font-size:12px;color:#FFFFFF;">
+                    <div style="font-size:11px;color:#64748b;">{row['week']}</div>
+                    <div style="font-size:16px;font-weight:600;color:#1d1d1f;">{row['publish_date_utc']}</div>
+                    <div style="font-size:12px;color:#6e6e73;margin-bottom:0.15rem;">{row['publish_time_utc']} UTC</div>
+                    <div style="font-size:12px;color:#424245;">
                         <span class="keyword-chip">{row['topic_hint']}</span>
                     </div>
                 </div>
@@ -2881,8 +2937,8 @@ def _render_ai_studio(
             f"""
             <div class="yt-card" style="padding:0.85rem 1rem;margin-bottom:0.75rem;">
                 <div style="font-size:11px;color:#7D8AB1;letter-spacing:0.08em;text-transform:uppercase;">Estimated text spend</div>
-                <div style="font-size:26px;font-weight:700;color:#FFFFFF;">${estimated_text_cost:.4f}</div>
-                <div style="font-size:12px;color:#A8B0CC;margin-top:0.2rem;">~{input_tokens:,} input tokens and ~{output_tokens:,} output tokens for this task mix.</div>
+                <div style="font-size:26px;font-weight:700;color:#CC0000;">${estimated_text_cost:.4f}</div>
+                <div style="font-size:12px;color:#5F6368;margin-top:0.2rem;">~{input_tokens:,} input tokens and ~{output_tokens:,} output tokens for this task mix.</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -2892,16 +2948,16 @@ def _render_ai_studio(
             f"""
             <div class="yt-card" style="padding:0.85rem 1rem;margin-bottom:0.75rem;">
                 <div style="font-size:11px;color:#7D8AB1;letter-spacing:0.08em;text-transform:uppercase;">Estimated thumbnail spend</div>
-                <div style="font-size:26px;font-weight:700;color:#FFFFFF;">${estimated_image_cost:.4f}</div>
-                <div style="font-size:12px;color:#A8B0CC;margin-top:0.2rem;">{thumbnail_count} image(s) at about ${image_unit_cost:.4f} each using {image_model_meta['label']}.</div>
+                <div style="font-size:26px;font-weight:700;color:#CC0000;">${estimated_image_cost:.4f}</div>
+                <div style="font-size:12px;color:#5F6368;margin-top:0.2rem;">{thumbnail_count} image(s) at about ${image_unit_cost:.4f} each using {image_model_meta['label']}.</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
     col_a, col_b = st.columns(2)
-    gen_text = col_a.button("Generate AI Content", use_container_width=True)
-    gen_thumb = col_b.button("Generate Thumbnail Images", use_container_width=True)
+    gen_text = col_a.button("Generate AI Content")
+    gen_thumb = col_b.button("Generate Thumbnail Images")
 
     total_videos = len(channel_df)
     total_views = int(channel_df["views"].fillna(0).sum())
@@ -2961,7 +3017,7 @@ def _render_ai_studio(
                     f"""
                     <div class="yt-card" style="margin-top:0.8rem;">
                         <div style="font-size:13px;color:#B0B0B0;margin-bottom:0.35rem;">AI Output</div>
-                        <pre style="white-space:pre-wrap;font-size:13px;color:#FFFFFF;background:rgba(20,27,41,0.95);padding:0.75rem;border-radius:10px;border:1px solid rgba(255,255,255,0.12);max-height:520px;overflow:auto;">{output}</pre>
+                        <pre style="white-space:pre-wrap;font-size:13px;color:#d0d0e0;background:rgba(15,15,35,0.92);padding:0.75rem;border-radius:10px;border:1px solid rgba(255,255,255,0.12);max-height:520px;overflow:auto;font-family:IBM Plex Mono,ui-monospace,monospace;">{output}</pre>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -3030,7 +3086,12 @@ def _render_ai_studio(
 
 def render() -> None:
     if build is None:
-        st.error("Missing dependency: google-api-python-client. Install with: python3 -m pip install google-api-python-client")
+        st.error(
+            "YouTube API libraries failed to import (often a **broken native wheel**: `cffi`, `cryptography`, or "
+            "`google-api-python-client`). In your project venv run:\n\n"
+            "`pip install -U google-api-python-client google-auth-httplib2 cryptography cffi`\n\n"
+            "If tables fail, reinstall Arrow: `pip uninstall pyarrow -y && pip install --no-cache-dir pyarrow`"
+        )
         return
 
     _inject_ytuber_css()
@@ -3042,25 +3103,6 @@ def render() -> None:
         "gemini": get_provider_key_count("gemini"),
         "openai": get_provider_key_count("openai"),
     }
-
-    st.markdown(
-        """
-        <div class="ytuber-hero">
-            <div class="ytuber-brand-row">
-                <span class="ytuber-brand-dot"></span>
-                YouTube IP V5
-            </div>
-            <div class="ytuber-kicker">YouTube Search And Creator Intelligence</div>
-            <div class="ytuber-title">Search Any YouTube Channel and Open a Live Growth Workspace.</div>
-            <div class="ytuber-subtitle">
-                Review live channel performance, benchmark against competitors, and move directly into AI-assisted planning,
-                titles, scripts, thumbnails, and publishing decisions.
-            </div>
-            <div class="ytuber-search-meta">Live Channel Sync. Competitive Context. AI Studio First.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
     _, search_col, _ = st.columns([1, 3.8, 1])
     with search_col:

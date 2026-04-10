@@ -11,7 +11,7 @@ import pandas as pd
 try:
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
-except Exception:  # pragma: no cover - import guard for environments without the dependency
+except (ImportError, ModuleNotFoundError, OSError):  # pragma: no cover - optional / broken native deps
     build = None
     HttpError = Exception
 
@@ -101,7 +101,8 @@ def _api_call_with_backoff(fn, max_retries: int = 7):
 def _yt_client(api_key: str):
     if build is None:
         raise RuntimeError(
-            "Missing dependency: google-api-python-client. Install with: python3 -m pip install google-api-python-client"
+            "YouTube API client failed to load. In your venv: "
+            "`pip install -U google-api-python-client google-auth-httplib2 cryptography cffi`"
         )
     return build("youtube", "v3", developerKey=api_key, cache_discovery=False)
 

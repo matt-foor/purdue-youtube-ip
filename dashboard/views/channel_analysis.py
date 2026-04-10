@@ -1,4 +1,5 @@
 import os
+from datetime import date, datetime
 
 import pandas as pd
 import streamlit as st
@@ -23,6 +24,64 @@ CATEGORY_FILES = {
     "Entertainment": "entertainment_channels_videos.csv",
 }
 ALL_LABEL = "All Categories"
+
+
+def _coerce_publish_date_range(
+    selection: object,
+    *,
+    data_min: date,
+    data_max: date,
+) -> tuple[date, date]:
+    """Normalize ``st.date_input`` range output to an inclusive (start, end) pair.
+
+    Range mode can return ``()``, ``(start,)``, ``(start, end)``, a bare ``date``, or a ``list``.
+    Empty selection falls back to the dataset span so charts match the widget default.
+    """
+    if selection is None:
+        return data_min, data_max
+    if isinstance(selection, datetime):
+        d = selection.date()
+        return d, d
+    if isinstance(selection, date):
+        return selection, selection
+    if isinstance(selection, (tuple, list)):
+        dates: list[date] = []
+        for item in selection:
+            if item is None:
+                continue
+            if isinstance(item, datetime):
+                dates.append(item.date())
+            elif isinstance(item, date):
+                dates.append(item)
+        if len(dates) >= 2:
+            a, b = dates[0], dates[1]
+            if a > b:
+                a, b = b, a
+            return a, b
+        if len(dates) == 1:
+            d0 = dates[0]
+            return d0, d0
+        return data_min, data_max
+    return data_min, data_max
+
+
+def _filter_rows_by_publish_calendar_range(
+    frame: pd.DataFrame, start: date, end: date
+) -> pd.DataFrame:
+    """Keep rows whose publish instant falls on a UTC calendar day in [*start*, *end*]."""
+    ts = frame["video_publishedAt"]
+    valid = ts.notna()
+    ts_ok = ts[valid]
+    if ts_ok.empty:
+        return frame.iloc[0:0]
+    if ts_ok.dt.tz is None:
+        ts_ok = ts_ok.dt.tz_localize("UTC")
+    else:
+        ts_ok = ts_ok.dt.tz_convert("UTC")
+    pub_day = ts_ok.dt.date
+    m = valid.copy()
+    m.loc[valid] = (pub_day >= start) & (pub_day <= end)
+    return frame.loc[m]
 
 
 def _dataset_path_for_label(label: str) -> str:
@@ -73,6 +132,28 @@ def _load_data_for_label(label: str) -> pd.DataFrame:
     return df
 
 
+def _render_engagement_formula_block() -> None:
+    st.markdown("#### How Engagement Rate is Calculated")
+    st.caption(
+        "Engagement Rate (%) = ((Likes + Comments) / Views) * 100. "
+        "If views are 0, we safely treat views as 1 to avoid divide-by-zero errors."
+    )
+
+    formula_matrix = pd.DataFrame(
+        [
+            {"Metric": "Likes", "Meaning": "Total likes on the video"},
+            {"Metric": "Comments", "Meaning": "Total comments on the video"},
+            {"Metric": "Views", "Meaning": "Total views on the video"},
+            {
+                "Metric": "Engagement Rate (%)",
+                "Meaning": "((Likes + Comments) / Views) * 100",
+            },
+        ]
+    )
+    with st.expander("Open formula matrix", expanded=False):
+        st.table(formula_matrix)
+
+
 def render() -> None:
     section_header("Channel Analysis", icon="📊")
 
@@ -93,25 +174,33 @@ def render() -> None:
         "Filter channels", channels, default=channels[:8]
     )
 
-    min_date = df["video_publishedAt"].min().date()
-    max_date = df["video_publishedAt"].max().date()
+    ts_min = df["video_publishedAt"].min()
+    ts_max = df["video_publishedAt"].max()
+    min_date = ts_min.date() if pd.notna(ts_min) else date.today()
+    max_date = ts_max.date() if pd.notna(ts_max) else date.today()
+    # Do not set max_value to the latest video date: choosing any window past that (e.g. next month)
+    # would fail Streamlit validation and snap the widget back to the full range, so charts ignore the
+    # user's range. min_value stays the dataset floor; upper bound defaults to last default +10y in Streamlit.
     date_range = st.date_input(
         "Published date range",
         value=(min_date, max_date),
         min_value=min_date,
-        max_value=max_date,
+        max_value=None,
+        key=f"channel_analysis_pub_range:{selected_category}",
+        help="UTC publish date of each video. Narrow ranges with no uploads in this dataset will empty the charts until you widen the window.",
+    )
+    st.caption(
+        "Filter uses each video's **UTC** calendar day. Switching dataset category resets this range to that file's span."
     )
 
     filtered = df.copy()
     if selected_channels:
         filtered = filtered[filtered["channel_title"].isin(selected_channels)]
 
-    if isinstance(date_range, tuple) and len(date_range) == 2:
-        start_date, end_date = date_range
-        filtered = filtered[
-            (filtered["video_publishedAt"].dt.date >= start_date)
-            & (filtered["video_publishedAt"].dt.date <= end_date)
-        ]
+    start_date, end_date = _coerce_publish_date_range(
+        date_range, data_min=min_date, data_max=max_date
+    )
+    filtered = _filter_rows_by_publish_calendar_range(filtered, start_date, end_date)
 
     if filtered.empty:
         st.warning("No data after filters. Broaden your channel/date filters.")
@@ -123,18 +212,19 @@ def render() -> None:
             "label": "Videos",
             "value": f"{len(filtered):,}",
             "icon": "🎬",
-            "color": "#A855F7",
+            "color": "#FF0000",
         },
         {
             "label": "Channels",
             "value": f"{filtered['channel_id'].nunique():,}",
             "icon": "📺",
-            "color": "#C4B5FD",
+            "color": "#FDFDFD",
         },
         {
             "label": "Total Views",
             "value": f"{int(filtered['views'].fillna(0).sum()):,}",
             "icon": "👁️",
+            "color": "#FF0000",
         },
         {
             "label": "Avg Views / Video",
@@ -142,8 +232,8 @@ def render() -> None:
             "icon": "📈",
         },
         {
-            "label": "Median Engagement",
-            "value": f"{filtered['engagement_rate'].median() * 100:.2f} %",
+            "label": "Typical Engagement Rate",
+            "value": f"{filtered['engagement_rate'].median() * 100:.2f}%",
             "icon": "💡",
         },
     ]
@@ -159,7 +249,7 @@ def render() -> None:
                 videos=("video_id", "count"),
                 total_views=("views", "sum"),
                 avg_views=("views", "mean"),
-                engagement=("engagement_rate", "median"),
+                typical_engagement_rate=("engagement_rate", "median"),
             )
             .sort_values("total_views", ascending=False)
             .head(15)
@@ -205,6 +295,7 @@ def render() -> None:
         title="Top Videos by Views",
         precision=2,
     )
+    _render_engagement_formula_block()
 
     section_header("Publishing Day Performance", icon="🗓️")
     day_perf = (
@@ -212,7 +303,7 @@ def render() -> None:
         .agg(
             videos=("video_id", "count"),
             avg_views=("views", "mean"),
-            median_engagement=("engagement_rate", "median"),
+            typical_engagement_rate=("engagement_rate", "median"),
         )
         .reindex(
             [
@@ -242,8 +333,8 @@ def render() -> None:
         fig_eng = plotly_bar_chart(
             day_perf,
             x="publish_day",
-            y="median_engagement",
-            title="Median Engagement Rate by Day",
+            y="typical_engagement_rate",
+            title="Typical Engagement Rate by Day",
         )
         st.plotly_chart(fig_eng, use_container_width=True)
 
@@ -255,8 +346,11 @@ def render() -> None:
         y="engagement_rate",
         size=None,
         color="channel_title",
-        title="Views vs Engagement Rate",
+        title="Views vs Engagement Rate (Log Scale)",
     )
+    fig_scatter.update_traces(marker={"size": 9, "opacity": 0.65})
+    fig_scatter.update_xaxes(type="log", title="Views (log scale)")
+    fig_scatter.update_yaxes(title="Engagement Rate")
     st.plotly_chart(fig_scatter, use_container_width=True)
 
     section_header("Engagement Distribution", icon="🥧")

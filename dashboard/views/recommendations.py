@@ -5,7 +5,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from dashboard.components.visualizations import section_header
+from dashboard.components.visualizations import graph_insight_expander, section_header
 from src.llm_integration.thumbnail_generator import ThumbnailGenerator, get_api_key
 from src.services.thumbnail_hub_service import PreparedThumbnailArtifact, ThumbnailPreview, prepare_thumbnail_download, preview_thumbnail_target
 from src.utils.api_keys import get_provider_key_count
@@ -99,11 +99,11 @@ def _inject_page_css() -> None:
             width:8px;
             height:8px;
             border-radius:999px;
-            background:linear-gradient(180deg,#A855F7,#8B5CF6);
-            box-shadow:0 0 16px rgba(139,92,246,0.45);
+            background:linear-gradient(180deg,#FF0000,#00D4FF);
+            box-shadow:0 0 16px rgba(255,0,0,0.45);
         }
         .thumb-title {
-            font-family:"Space Grotesk","Plus Jakarta Sans",system-ui,sans-serif;
+            font-family:"Inter",system-ui,sans-serif;
             font-size:clamp(34px,3.8vw,50px);
             line-height:1.02;
             font-weight:700;
@@ -122,14 +122,15 @@ def _inject_page_css() -> None:
             border-radius:24px;
             border:1px solid rgba(255,255,255,0.08);
             background:
-                radial-gradient(circle at top left, rgba(139, 92, 246, 0.10) 0%, transparent 30%),
-                linear-gradient(180deg, rgba(26, 33, 64, 0.95) 0%, rgba(15, 19, 36, 0.98) 100%);
+                radial-gradient(circle at top left, rgba(255, 0, 0, 0.12) 0%, transparent 32%),
+                radial-gradient(circle at top right, rgba(0, 212, 255, 0.08) 0%, transparent 28%),
+                linear-gradient(180deg, rgba(22, 33, 62, 0.95) 0%, rgba(15, 15, 35, 0.98) 100%);
             box-shadow:0 20px 46px rgba(3, 6, 20, 0.40);
             padding:1.1rem 1.2rem;
             margin-bottom:1rem;
         }
         .thumb-card-title {
-            font-family:"Space Grotesk","Plus Jakarta Sans",system-ui,sans-serif;
+            font-family:"Inter",system-ui,sans-serif;
             color:#F7F8FC;
             font-size:20px;
             font-weight:700;
@@ -175,6 +176,128 @@ def _inject_page_css() -> None:
             font-size:13px;
             line-height:1.6;
         }
+        /* Light glass */
+        .thumb-card {
+            background: rgba(255, 255, 255, 0.92) !important;
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            box-shadow: 0 16px 44px rgba(0, 0, 0, 0.1) !important;
+        }
+        .thumb-card-title { color: #1d1d1f !important; }
+        .thumb-card-copy { color: #424245 !important; }
+        .thumb-metric {
+            background: rgba(255, 255, 255, 0.95) !important;
+            border: 1px solid rgba(0, 0, 0, 0.08) !important;
+        }
+        .thumb-metric-label { color: #6e6e73 !important; }
+        .thumb-metric-value { color: #1d1d1f !important; }
+        .thumb-empty {
+            border: 1px dashed rgba(0, 0, 0, 0.15) !important;
+            background: rgba(255, 255, 255, 0.85) !important;
+            color: #6e6e73 !important;
+        }
+        /* Thumbnails page controls: force light glass fields (no dark fallbacks) */
+        .thumb-page [data-testid="stWidgetLabel"] p,
+        .thumb-page [data-testid="stWidgetLabel"] label,
+        .thumb-page [data-testid="stWidgetLabel"] span {
+            color: #1d1d1f !important;
+            opacity: 1 !important;
+            font-weight: 600 !important;
+        }
+        .thumb-page .stTextInput > div > div > input,
+        .thumb-page .stTextArea textarea,
+        .thumb-page [data-baseweb="input"] > div,
+        .thumb-page [data-baseweb="textarea"] > div,
+        .thumb-page [data-baseweb="select"] > div,
+        .thumb-page .stSelectbox > div > div {
+            background: linear-gradient(165deg, rgba(255, 255, 255, 1), rgba(240, 244, 250, 0.98)) !important;
+            color: #1d1d1f !important;
+            border: 1px solid rgba(0, 0, 0, 0.16) !important;
+            border-radius: 14px !important;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 1),
+                0 6px 16px rgba(0, 0, 0, 0.08) !important;
+        }
+        .thumb-page [data-baseweb="input"] input,
+        .thumb-page [data-baseweb="textarea"] textarea,
+        .thumb-page .stTextInput input,
+        .thumb-page .stTextArea textarea {
+            color: #1d1d1f !important;
+            caret-color: #1d1d1f !important;
+            background: transparent !important;
+        }
+        .thumb-page .stTextInput input::placeholder,
+        .thumb-page .stTextArea textarea::placeholder {
+            color: #6e6e73 !important;
+            opacity: 1 !important;
+        }
+        .thumb-page [data-baseweb="input"] input:focus,
+        .thumb-page [data-baseweb="textarea"] textarea:focus,
+        .thumb-page .stTextInput input:focus,
+        .thumb-page .stTextArea textarea:focus {
+            border-color: rgba(230, 0, 18, 0.35) !important;
+            box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.14) !important;
+            outline: none !important;
+        }
+        /* Fallback (no .thumb-page wrapper in DOM): force light text areas/inputs */
+        .stTextArea textarea,
+        [data-baseweb="textarea"] textarea,
+        [data-baseweb="textarea"] > div,
+        .stTextInput input,
+        [data-baseweb="input"] input,
+        [data-baseweb="input"] > div,
+        .stSelectbox > div > div,
+        [data-baseweb="select"] > div {
+            background: linear-gradient(165deg, rgba(255, 255, 255, 1), rgba(240, 244, 250, 0.98)) !important;
+            color: #1d1d1f !important;
+            border: 1px solid rgba(0, 0, 0, 0.16) !important;
+            border-radius: 14px !important;
+            -webkit-text-fill-color: #1d1d1f !important;
+        }
+        .stTextArea textarea::placeholder,
+        .stTextInput input::placeholder,
+        [data-baseweb="textarea"] textarea::placeholder,
+        [data-baseweb="input"] input::placeholder {
+            color: #6e6e73 !important;
+            -webkit-text-fill-color: #6e6e73 !important;
+            opacity: 1 !important;
+        }
+        /* Thumbnails page help icon: remove dark dot artifact and show a clean bulb */
+        [data-testid="stWidgetLabel"] [data-testid*="stTooltipHoverTarget"] button,
+        [data-testid="stWidgetLabel"] [data-testid*="stTooltipIcon"],
+        [data-testid="stWidgetLabel"] [data-testid*="stHelpIcon"] {
+            width: 24px !important;
+            height: 24px !important;
+            min-width: 24px !important;
+            min-height: 24px !important;
+            border-radius: 999px !important;
+            background: linear-gradient(165deg, #fffaf0, #fff3d9) !important;
+            border: 1px solid rgba(230, 0, 18, 0.42) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+            color: transparent !important;
+            position: relative !important;
+            overflow: hidden !important;
+        }
+        [data-testid="stWidgetLabel"] [data-testid*="stTooltipHoverTarget"] button *,
+        [data-testid="stWidgetLabel"] [data-testid*="stTooltipIcon"] *,
+        [data-testid="stWidgetLabel"] [data-testid*="stHelpIcon"] * {
+            opacity: 0 !important;
+            color: transparent !important;
+            background: transparent !important;
+            border: 0 !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stWidgetLabel"] [data-testid*="stTooltipHoverTarget"] button::before,
+        [data-testid="stWidgetLabel"] [data-testid*="stTooltipIcon"]::before,
+        [data-testid="stWidgetLabel"] [data-testid*="stHelpIcon"]::before {
+            content: "💡";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -54%);
+            font-size: 13px;
+            line-height: 1;
+            opacity: 1 !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -209,24 +332,6 @@ def _register_thumbnail_artifact(artifact: PreparedThumbnailArtifact) -> None:
     paths = set(st.session_state.get("thumbnails_temp_paths", []))
     paths.add(temp_dir)
     st.session_state["thumbnails_temp_paths"] = sorted(paths)
-
-
-def _render_hero() -> None:
-    st.markdown(
-        """
-        <div class="thumb-page">
-            <div class="thumb-hero">
-                <div class="thumb-kicker"><span class="thumb-kicker-dot"></span>Thumbnails</div>
-                <div class="thumb-title">Generate stronger thumbnail concepts or export the best public thumbnail from any video.</div>
-                <div class="thumb-subtitle">
-                    This workspace is intentionally thumbnail-only. Use it to create fresh concepts with Gemini or OpenAI,
-                    or pull public thumbnail variants from a YouTube URL without dragging in broader strategy, transcript, or media-download tooling.
-                </div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
 def _render_generate_tab() -> None:
@@ -480,13 +585,40 @@ def _render_download_tab() -> None:
                 )
 
 
-def render() -> None:
+def render_thumbnail_workspace() -> None:
+    """Thumbnail generate + public thumbnail export (used by Download Hub)."""
     _inject_page_css()
-    _render_hero()
+    st.markdown('<div class="thumb-page">', unsafe_allow_html=True)
+
+    graph_insight_expander(
+        "Thumbnails",
+        """
+**Generate (AI)**  
+1. Choose **Provider** (Gemini or OpenAI) and **Model**.  
+2. Add an **API key** if one is not already in Streamlit secrets.  
+3. Fill **Video title**, **Creative context**, **Style**, and **Avoid** so the model matches your channel.  
+4. Set **Options** (count), **Size**, and **Quality**, then click **Generate Thumbnails**.  
+5. Use each **Download** button to save images to your computer.
+
+**Download from URL (public thumbnail)**  
+1. Paste a watch, Short, `youtu.be`, or **video ID** and click **Preview Thumbnail**.  
+2. Pick a **Thumbnail variant** in the list.  
+3. Click **Prepare Thumbnail Download**, then **Download Thumbnail**.
+
+Public thumbnails come from YouTube’s published assets only; AI generation uses your provider’s API and may incur cost.
+        """,
+        for_instructions=True,
+    )
 
     tabs = st.tabs(["Generate", "Download From URL"])
     with tabs[0]:
         _render_generate_tab()
     with tabs[1]:
         _render_download_tab()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render() -> None:
+    render_thumbnail_workspace()
 

@@ -9,7 +9,13 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from dashboard.components.visualizations import styled_dataframe, styled_keyword_chips
+from dashboard.components.visualizations import (
+    apply_dashboard_chart_theme,
+    graph_insight_expander,
+    show_plotly_chart,
+    styled_dataframe,
+    styled_keyword_chips,
+)
 from src.services.outlier_ai import InsightCard, OutlierAIReport, generate_outlier_ai_report
 from src.services.outliers_finder import (
     DURATION_BUCKET_ORDER,
@@ -78,7 +84,7 @@ SEARCH_STATE_KEYS = (
     "outlier_page_ai_model",
     "outlier_page_prefill_note",
 )
-PURPLE_SCALE = ["#6D28D9", "#8B5CF6", "#A855F7", "#C084FC", "#DDD6FE"]
+YT_CHART_SCALE = ["#FF0000", "#00D4FF", "#00E676", "#FFB300", "#FF6090", "#7C4DFF"]
 
 
 def _inject_outlier_css() -> None:
@@ -86,15 +92,14 @@ def _inject_outlier_css() -> None:
         """
         <style>
         [data-testid="stForm"] {
-            background:
-                radial-gradient(circle at top left, rgba(139, 92, 246, 0.14) 0%, transparent 34%),
-                linear-gradient(180deg, rgba(26, 33, 64, 0.94) 0%, rgba(15, 19, 36, 0.98) 100%);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 30px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 20px;
             padding: 1.5rem 1.5rem 1.2rem;
-            box-shadow: 0 20px 48px rgba(3, 6, 20, 0.42);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.1);
             margin: 0 auto 1.6rem;
             max-width: var(--app-command-width);
+            backdrop-filter: blur(18px);
         }
         [data-testid="stForm"] [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
             row-gap: 0.95rem;
@@ -104,9 +109,9 @@ def _inject_outlier_css() -> None:
             padding: 0.05rem 0.15rem;
         }
         [data-testid="stExpander"] {
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 18px;
-            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            border-radius: 14px !important;
+            background: rgba(255, 255, 255, 0.88) !important;
             margin-top: 0.15rem;
         }
         .outlier-page {
@@ -124,9 +129,9 @@ def _inject_outlier_css() -> None:
             gap: 0.5rem;
             padding: 0.45rem 0.8rem;
             border-radius: 999px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.09);
-            color: #F7F8FC;
+            background: rgba(255, 0, 0, 0.12);
+            border: 1px solid rgba(255, 0, 0, 0.35);
+            color: #FF8888;
             font-size: 12px;
             letter-spacing: 0.1em;
             text-transform: uppercase;
@@ -136,16 +141,16 @@ def _inject_outlier_css() -> None:
             width: 8px;
             height: 8px;
             border-radius: 999px;
-            background: linear-gradient(180deg, #A855F7, #8B5CF6);
-            box-shadow: 0 0 16px rgba(139, 92, 246, 0.55);
+            background: #FF0000;
+            box-shadow: 0 0 14px rgba(255, 0, 0, 0.55);
         }
         .outlier-title {
-            font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
-            font-size: clamp(38px, 4vw, 58px);
-            line-height: 0.98;
-            font-weight: 700;
-            color: #F7F8FC;
-            letter-spacing: -0.04em;
+            font-family: "Inter", system-ui, sans-serif;
+            font-size: clamp(32px, 4vw, 48px);
+            line-height: 1.05;
+            font-weight: 800;
+            color: #FFFFFF;
+            letter-spacing: -0.03em;
             margin-bottom: 0.85rem;
         }
         .outlier-subtitle {
@@ -153,7 +158,7 @@ def _inject_outlier_css() -> None:
             margin: 0 auto;
             font-size: 16px;
             line-height: 1.65;
-            color: #B8C1DA;
+            color: #B0B0B0;
         }
         .outlier-trust-row {
             display: flex;
@@ -165,23 +170,23 @@ def _inject_outlier_css() -> None:
         .outlier-pill {
             padding: 0.4rem 0.78rem;
             border-radius: 999px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid rgba(255,255,255,0.08);
-            color: #D7DDF0;
+            background: rgba(22, 33, 62, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            color: #d0d0e0;
             font-size: 12px;
         }
         .outlier-shell-head {
             margin-bottom: 1.1rem;
         }
         .outlier-shell-title {
-            font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+            font-family: "Inter", system-ui, sans-serif;
             font-size: 20px;
             font-weight: 700;
-            color: #F7F8FC;
+            color: #FFFFFF;
             margin-bottom: 0.25rem;
         }
         .outlier-shell-copy {
-            color: #B8C1DA;
+            color: #B0B0B0;
             font-size: 13px;
             line-height: 1.55;
             max-width: 620px;
@@ -221,19 +226,19 @@ def _inject_outlier_css() -> None:
             padding: 0.55rem 0.8rem;
             margin: 0 auto 1.05rem;
             border-radius: 999px;
-            background: rgba(139, 92, 246, 0.13);
-            border: 1px solid rgba(196, 181, 253, 0.18);
-            color: #E6DFFC;
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.28);
+            color: #e2e8f0;
             font-size: 12px;
         }
         .outlier-panel-note {
             margin-top: 1rem;
             padding: 0.8rem 0.95rem;
-            border-radius: 18px;
-            border: 1px solid rgba(255,255,255,0.08);
-            background: rgba(255,255,255,0.03);
-            color: #B8C1DA;
-            font-size: 12px;
+            border-radius: 14px;
+            border: 1px solid rgba(0, 212, 255, 0.25);
+            background: rgba(15, 15, 35, 0.75);
+            color: #d0d0e0;
+            font-size: 13px;
             line-height: 1.6;
         }
         .outlier-section {
@@ -246,40 +251,40 @@ def _inject_outlier_css() -> None:
             margin-top: 0.18rem;
         }
         .outlier-summary-card {
-            border-radius: 22px;
+            border-radius: 16px;
             min-height: 156px;
             padding: 1rem 1rem 0.95rem;
-            background: linear-gradient(180deg, rgba(34, 42, 76, 0.96) 0%, rgba(20, 26, 49, 0.98) 100%);
-            border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 16px 36px rgba(3, 6, 20, 0.40);
+            background: linear-gradient(160deg, rgba(22, 33, 62, 0.5) 0%, rgba(15, 15, 35, 0.92) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
             margin-bottom: 0.9rem;
         }
         .outlier-summary-label {
-            color: #8D98BA;
+            color: #8b8ba8;
             font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.11em;
             margin-bottom: 0.3rem;
         }
         .outlier-summary-value {
-            font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+            font-family: "IBM Plex Mono", "Inter", monospace;
             font-size: 30px;
             font-weight: 700;
             line-height: 1.05;
-            color: #F7F8FC;
+            color: #00D4FF;
         }
         .outlier-summary-detail {
-            color: #B8C1DA;
+            color: #B0B0B0;
             font-size: 12px;
             margin-top: 0.25rem;
             line-height: 1.5;
         }
         .outlier-result-card {
-            border-radius: 24px;
+            border-radius: 16px;
             overflow: hidden;
-            background: linear-gradient(180deg, rgba(33, 40, 73, 0.98) 0%, rgba(20, 26, 49, 0.99) 100%);
-            border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 18px 40px rgba(3, 6, 20, 0.44);
+            background: linear-gradient(180deg, rgba(22, 33, 62, 0.4) 0%, rgba(15, 15, 35, 0.95) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
             margin-bottom: 1rem;
             min-height: 455px;
             display: flex;
@@ -305,10 +310,10 @@ def _inject_outlier_css() -> None:
             gap: 0.8rem;
         }
         .outlier-result-title {
-            font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+            font-family: "Inter", system-ui, sans-serif;
             font-size: 17px;
-            font-weight: 700;
-            color: #F7F8FC;
+            font-weight: 800;
+            color: #FFFFFF;
             line-height: 1.32;
             display: -webkit-box;
             -webkit-box-orient: vertical;
@@ -317,7 +322,7 @@ def _inject_outlier_css() -> None:
             min-height: 46px;
         }
         .outlier-result-channel {
-            color: #A7B3D3;
+            color: #67e8f9;
             font-size: 12px;
             margin-top: 0.2rem;
         }
@@ -327,27 +332,27 @@ def _inject_outlier_css() -> None:
             padding: 0.5rem 0.62rem;
             border-radius: 18px;
             text-align: center;
-            background: rgba(139, 92, 246, 0.16);
-            border: 1px solid rgba(196, 181, 253, 0.2);
+            background: rgba(255, 0, 0, 0.12);
+            border: 1px solid rgba(255, 0, 0, 0.35);
         }
         .outlier-score-value {
-            font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+            font-family: "IBM Plex Mono", "Inter", monospace;
             font-size: 22px;
             font-weight: 700;
-            color: #FFFFFF;
+            color: #FF6090;
             line-height: 1;
         }
         .outlier-score-label {
             font-size: 10px;
             letter-spacing: 0.11em;
             text-transform: uppercase;
-            color: #DCCFFF;
+            color: #8b8ba8;
             margin-top: 0.12rem;
         }
         .outlier-score-band {
             margin-top: 0.26rem;
             font-size: 10px;
-            color: #C4B5FD;
+            color: #FF7777;
         }
         .outlier-metric-row {
             display: flex;
@@ -358,15 +363,15 @@ def _inject_outlier_css() -> None:
         .outlier-metric-chip {
             padding: 0.32rem 0.6rem;
             border-radius: 999px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.08);
-            color: #DDE3F6;
+            background: rgba(22, 33, 62, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            color: #d0d0e0;
             font-size: 11px;
         }
         .outlier-bullets {
             margin: 0;
             padding-left: 1rem;
-            color: #EAEFFF;
+            color: #d0d0e0;
             font-size: 12px;
             line-height: 1.55;
         }
@@ -378,7 +383,7 @@ def _inject_outlier_css() -> None:
             display: inline-flex;
             align-items: center;
             gap: 0.35rem;
-            color: #D8C7FF !important;
+            color: #00D4FF !important;
             font-weight: 700;
             font-size: 12px;
             padding-top: 0.7rem;
@@ -389,69 +394,81 @@ def _inject_outlier_css() -> None:
             padding: 0.1rem 0 0.2rem;
         }
         .outlier-chart-title {
-            font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
-            color: #F7F8FC;
+            font-family: "Inter", system-ui, sans-serif;
+            color: #FFFFFF;
             font-size: 17px;
             font-weight: 700;
             margin-bottom: 0.2rem;
         }
         .outlier-chart-copy {
-            color: #AAB5D6;
+            color: #B0B0B0;
             font-size: 12px;
             line-height: 1.5;
             margin-bottom: 0.45rem;
         }
+        .outlier-ai-section-head {
+            font-family: "Inter", system-ui, sans-serif;
+            font-size: 26px;
+            font-weight: 800;
+            color: #f8fafc;
+            margin: 2rem 0 0.35rem;
+            padding-bottom: 0.4rem;
+            border-bottom: 3px solid rgba(0, 212, 255, 0.55);
+            letter-spacing: -0.02em;
+        }
         .outlier-ai-hero {
-            border-radius: 24px;
-            padding: 1rem 1rem 0.95rem;
-            background: linear-gradient(180deg, rgba(34, 42, 76, 0.96) 0%, rgba(20, 26, 49, 0.98) 100%);
-            border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 18px 40px rgba(3, 6, 20, 0.40);
+            border-radius: 16px;
+            padding: 1.1rem 1.15rem;
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.08) 0%, rgba(15, 15, 35, 0.92) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-left: 4px solid #00D4FF;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
             margin-bottom: 1rem;
         }
         .outlier-ai-title {
-            font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+            font-family: "Inter", system-ui, sans-serif;
             font-size: 22px;
-            font-weight: 700;
-            color: #F7F8FC;
-            margin-bottom: 0.25rem;
+            font-weight: 800;
+            color: #FFFFFF;
+            margin-bottom: 0.35rem;
+            line-height: 1.25;
         }
         .outlier-ai-copy {
-            color: #C4CDEA;
+            color: #d0d0e0;
             font-size: 14px;
             line-height: 1.6;
         }
         .outlier-ai-meta {
             margin-top: 0.4rem;
-            color: #9EABCF;
+            color: #8b8ba8;
             font-size: 12px;
         }
         .outlier-ai-card {
-            border-radius: 22px;
+            border-radius: 16px;
             min-height: 188px;
             padding: 1rem 1rem 0.95rem;
-            background: linear-gradient(180deg, rgba(33, 40, 73, 0.98) 0%, rgba(20, 26, 49, 0.99) 100%);
-            border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 18px 40px rgba(3, 6, 20, 0.38);
+            background: rgba(15, 15, 35, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
             margin-bottom: 0.9rem;
             display: flex;
             flex-direction: column;
         }
         .outlier-ai-card-title {
-            font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+            font-family: "Inter", system-ui, sans-serif;
             font-size: 16px;
-            font-weight: 700;
-            color: #F7F8FC;
+            font-weight: 800;
+            color: #FF6090;
             margin-bottom: 0.35rem;
         }
         .outlier-ai-card-body {
-            color: #D7DDF0;
+            color: #d0d0e0;
             font-size: 13px;
             line-height: 1.58;
             flex: 1;
         }
         .outlier-ai-card-support {
-            color: #95A3C7;
+            color: #8b8ba8;
             font-size: 12px;
             line-height: 1.45;
             margin-top: 0.5rem;
@@ -468,79 +485,367 @@ def _inject_outlier_css() -> None:
             margin-top: 0.85rem;
         }
         .outlier-quality-metric {
-            border-radius: 18px;
+            border-radius: 14px;
             padding: 0.82rem 0.85rem;
-            background: rgba(255,255,255,0.035);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(15, 15, 35, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.12);
         }
         .outlier-quality-label {
-            color: #95A3C7;
+            color: #8b8ba8;
             font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.08em;
             margin-bottom: 0.25rem;
         }
         .outlier-quality-value {
-            color: #F7F8FC;
-            font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+            color: #FFFFFF;
+            font-family: "IBM Plex Mono", "Inter", monospace;
             font-size: 24px;
             font-weight: 700;
             line-height: 1.05;
         }
         .outlier-quality-note {
-            color: #B8C1DA;
+            color: #B0B0B0;
             font-size: 12px;
             line-height: 1.6;
             margin-top: auto;
             padding-top: 0.85rem;
         }
         .outlier-empty-card {
-            border-radius: 24px;
+            border-radius: 16px;
             padding: 1.1rem 1.15rem;
-            background: linear-gradient(180deg, rgba(32, 39, 70, 0.96) 0%, rgba(16, 20, 37, 0.98) 100%);
-            border: 1px solid rgba(255,255,255,0.08);
-            box-shadow: 0 16px 38px rgba(3, 6, 20, 0.34);
+            background: rgba(15, 15, 35, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
             margin-bottom: 1rem;
         }
         .outlier-empty-title {
-            font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+            font-family: "Inter", system-ui, sans-serif;
             font-size: 18px;
-            font-weight: 700;
-            color: #F7F8FC;
+            font-weight: 800;
+            color: #FFFFFF;
             margin-bottom: 0.25rem;
         }
         .outlier-empty-copy {
-            color: #B8C1DA;
+            color: #B0B0B0;
             font-size: 13px;
             line-height: 1.58;
         }
         .outlier-method-card {
-            border-radius: 20px;
+            border-radius: 16px;
             padding: 1rem 1rem 0.9rem;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(15, 15, 35, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             margin-bottom: 0.8rem;
         }
         .outlier-method-card h4 {
             margin: 0 0 0.4rem;
-            color: #F7F8FC;
-            font-family: "Space Grotesk", "Plus Jakarta Sans", system-ui, sans-serif;
+            color: #e60012;
+            font-family: "Inter", system-ui, sans-serif;
+            font-weight: 800;
         }
         .outlier-method-card p,
         .outlier-method-card li {
-            color: #CBD4ED;
+            color: #d0d0e0;
             font-size: 13px;
             line-height: 1.58;
         }
         .outlier-footnote {
             margin-top: 0.4rem;
             padding: 0.9rem 1rem;
-            border-radius: 18px;
-            border: 1px solid rgba(196, 181, 253, 0.12);
-            background: rgba(139, 92, 246, 0.08);
-            color: #D9DEF1;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 0, 0, 0.2);
+            background: rgba(255, 0, 0, 0.06);
+            color: #B0B0B0;
             font-size: 12px;
             line-height: 1.62;
+        }
+        /* Light UI — Outlier-specific classes */
+        .outlier-shell-title,
+        .outlier-title { color: #1d1d1f !important; }
+        .outlier-shell-copy,
+        .outlier-subtitle,
+        .outlier-helper,
+        .outlier-inline-field-label { color: #424245 !important; }
+        .outlier-summary-card,
+        .outlier-result-card,
+        .outlier-method-card {
+            background: rgba(255, 255, 255, 0.94) !important;
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.08) !important;
+        }
+        .outlier-summary-value { color: #0071e3 !important; }
+        .outlier-empty-title { color: #1d1d1f !important; }
+        .outlier-empty-copy { color: #6e6e73 !important; }
+        .outlier-prefill-note {
+            background: rgba(0, 113, 227, 0.08) !important;
+            border: 1px solid rgba(0, 113, 227, 0.25) !important;
+            color: #1d1d1f !important;
+        }
+        .outlier-row-label,
+        .outlier-results-summary,
+        .outlier-visibility-copy { color: #424245 !important; }
+        .outlier-result-title,
+        .outlier-chart-title,
+        .outlier-ai-title,
+        .outlier-quality-value,
+        .outlier-ai-section-head { color: #1d1d1f !important; }
+        .outlier-result-channel { color: #0058b0 !important; }
+        .outlier-chart-copy,
+        .outlier-ai-copy,
+        .outlier-bullets,
+        .outlier-panel-note,
+        .outlier-method-card p,
+        .outlier-method-card li { color: #424245 !important; }
+        .outlier-panel-note,
+        .outlier-ai-card,
+        .outlier-ai-hero,
+        .outlier-empty-card,
+        .outlier-quality-metric {
+            background: rgba(255, 255, 255, 0.96) !important;
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            color: #424245 !important;
+        }
+        .outlier-ai-card-body,
+        .outlier-ai-card-support { color: #424245 !important; }
+        .outlier-pill {
+            background: rgba(0, 0, 0, 0.05) !important;
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            color: #1d1d1f !important;
+        }
+        .outlier-metric-chip {
+            background: rgba(0, 113, 227, 0.08) !important;
+            border: 1px solid rgba(0, 113, 227, 0.2) !important;
+            color: #1d1d1f !important;
+        }
+        .outlier-footnote { color: #424245 !important; }
+        /* Outlier form actions + segmented controls: high-contrast on white */
+        [data-testid="stForm"] .stFormSubmitButton button {
+            min-height: 46px !important;
+            border-radius: 999px !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.01em !important;
+        }
+        [data-testid="stForm"] .stFormSubmitButton button[kind="primary"] {
+            background: linear-gradient(180deg, #ff2b2b, #e60012) !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(0, 0, 0, 0.16) !important;
+            box-shadow: 0 8px 20px rgba(230, 0, 18, 0.3) !important;
+        }
+        [data-testid="stForm"] .stFormSubmitButton button:not([kind="primary"]) {
+            background: linear-gradient(165deg, rgba(255, 255, 255, 1), rgba(236, 240, 248, 0.96)) !important;
+            color: #1d1d1f !important;
+            border: 1px solid rgba(0, 0, 0, 0.22) !important;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.98),
+                0 6px 16px rgba(0, 0, 0, 0.12) !important;
+        }
+        [data-testid="stForm"] .stFormSubmitButton button:not([kind="primary"]):hover {
+            border-color: rgba(230, 0, 18, 0.45) !important;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 1),
+                0 0 0 2px rgba(0, 113, 227, 0.12),
+                0 8px 20px rgba(0, 0, 0, 0.14) !important;
+        }
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] {
+            background: rgba(255, 255, 255, 0.98) !important;
+            border: 1px solid rgba(0, 0, 0, 0.16) !important;
+            border-radius: 13px !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1), 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+            overflow: hidden !important;
+        }
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radiogroup"],
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-baseweb="button-group"] {
+            background: #ffffff !important;
+            border-radius: 12px !important;
+        }
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] button,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radio"] {
+            color: #1d1d1f !important;
+            font-weight: 600 !important;
+            background: #ffffff !important;
+            border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
+        }
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [aria-checked="true"],
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-selected="true"] {
+            background: linear-gradient(165deg, rgba(255, 245, 245, 1), rgba(255, 255, 255, 0.98)) !important;
+            color: #9b000b !important;
+            box-shadow: inset 0 0 0 1px rgba(230, 0, 18, 0.5) !important;
+        }
+        /* Hard override for segmented text visibility in Baseweb variants */
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] * {
+            color: #1d1d1f !important;
+            opacity: 1 !important;
+        }
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [aria-checked="false"],
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-selected="false"] {
+            background: #ffffff !important;
+            color: #1d1d1f !important;
+        }
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radiogroup"] > *,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radiogroup"] > * > *,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-baseweb="button-group"] > *,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-baseweb="button-group"] button {
+            background: #ffffff !important;
+            color: #1d1d1f !important;
+            border-color: rgba(0, 0, 0, 0.1) !important;
+        }
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [aria-checked="false"] *,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-selected="false"] * {
+            background: transparent !important;
+            color: #1d1d1f !important;
+            opacity: 1 !important;
+        }
+        /* Force unselected segmented pill to pure white across Baseweb wrappers */
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radio"][aria-checked="false"],
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] button[aria-checked="false"],
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radio"][aria-checked="false"] *,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] button[aria-checked="false"] * {
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            color: #111216 !important;
+        }
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radio"][aria-checked="false"]::before,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radio"][aria-checked="false"]::after,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] button[aria-checked="false"]::before,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] button[aria-checked="false"]::after {
+            background: transparent !important;
+            box-shadow: none !important;
+            border: 0 !important;
+        }
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [aria-checked="true"],
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-selected="true"] {
+            background: linear-gradient(165deg, rgba(255, 246, 246, 1), rgba(255, 255, 255, 0.98)) !important;
+            color: #9b000b !important;
+            border-color: rgba(230, 0, 18, 0.35) !important;
+        }
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [aria-checked="true"] *,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-selected="true"] * {
+            color: #9b000b !important;
+            opacity: 1 !important;
+        }
+        /* Nuclear fallback: remove any dark Baseweb background from segmented controls */
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radiogroup"],
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radiogroup"] *,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-baseweb="button-group"],
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-baseweb="button-group"] *,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] button,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] button * {
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            background-image: none !important;
+            color: #111216 !important;
+        }
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [aria-checked="true"],
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [aria-checked="true"] *,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-selected="true"],
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-selected="true"] * {
+            background: linear-gradient(165deg, rgba(255, 246, 246, 1), rgba(255, 255, 255, 0.98)) !important;
+            background-color: rgba(255, 246, 246, 1) !important;
+            background-image: none !important;
+            color: #9b000b !important;
+        }
+        /* Final hard-stop: any non-selected segmented segment must remain white */
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] button:not([aria-checked="true"]):not([data-selected="true"]),
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radio"]:not([aria-checked="true"]):not([data-selected="true"]),
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [data-baseweb="button-group"] > *:not([aria-checked="true"]):not([data-selected="true"]),
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radiogroup"] > *:not([aria-checked="true"]):not([data-selected="true"]),
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radiogroup"] > * > *:not([aria-checked="true"]):not([data-selected="true"]) {
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            color: #111216 !important;
+            border-color: rgba(0, 0, 0, 0.1) !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] button:not([aria-checked="true"]):not([data-selected="true"]) *,
+        [data-testid="stForm"] [data-testid="stSegmentedControl"] [role="radio"]:not([aria-checked="true"]):not([data-selected="true"]) * {
+            background: transparent !important;
+            color: #111216 !important;
+            opacity: 1 !important;
+        }
+        /* Number input group shell and +/- controls: always light */
+        [data-testid="stForm"] [data-testid="stNumberInput"] [data-baseweb="input"],
+        [data-testid="stForm"] [data-testid="stNumberInput"] [data-baseweb="input"] > div {
+            background: linear-gradient(165deg, rgba(255, 255, 255, 0.98), rgba(242, 246, 252, 0.94)) !important;
+            border: 1px solid rgba(173, 186, 205, 0.52) !important;
+            border-color: rgba(173, 186, 205, 0.52) !important;
+            outline: none !important;
+            border-radius: 12px !important;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.98),
+                inset 0 -1px 0 rgba(167, 182, 203, 0.32),
+                0 6px 16px rgba(15, 23, 42, 0.10),
+                0 1px 0 rgba(255, 255, 255, 0.92) !important;
+            color: #1d1d1f !important;
+        }
+        [data-testid="stForm"] [data-testid="stNumberInput"] [data-baseweb="input"] *,
+        [data-testid="stForm"] [data-testid="stNumberInput"] [data-baseweb="input"] > div * {
+            border-color: transparent !important;
+        }
+        [data-testid="stForm"] [data-testid="stNumberInput"] [data-baseweb="input"]::before,
+        [data-testid="stForm"] [data-testid="stNumberInput"] [data-baseweb="input"]::after,
+        [data-testid="stForm"] [data-testid="stNumberInput"] [data-baseweb="input"] > div::before,
+        [data-testid="stForm"] [data-testid="stNumberInput"] [data-baseweb="input"] > div::after {
+            border: 0 !important;
+            box-shadow: none !important;
+            outline: 0 !important;
+        }
+        [data-testid="stForm"] [data-testid="stNumberInput"] [data-baseweb="input"]:focus-within,
+        [data-testid="stForm"] [data-testid="stNumberInput"] [data-baseweb="input"] > div:focus-within {
+            border-color: rgba(0, 113, 227, 0.34) !important;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 1),
+                inset 0 -1px 0 rgba(0, 113, 227, 0.28),
+                0 0 0 2px rgba(0, 113, 227, 0.14),
+                0 8px 20px rgba(15, 23, 42, 0.14) !important;
+        }
+        [data-testid="stForm"] [data-testid="stNumberInput"] [data-baseweb="input"] button {
+            background: linear-gradient(165deg, rgba(255, 255, 255, 1), rgba(236, 241, 249, 0.96)) !important;
+            border-left: 1px solid rgba(176, 189, 209, 0.44) !important;
+            color: #111216 !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.98) !important;
+        }
+        [data-testid="stForm"] [data-testid="stNumberInput"] [data-baseweb="input"] button svg {
+            stroke: #111216 !important;
+            fill: #111216 !important;
+            color: #111216 !important;
+        }
+        /* Outlier Finder help/info icon: replace dark dot with bulb */
+        [data-testid="stForm"] [data-testid*="stTooltipHoverTarget"] button,
+        [data-testid="stForm"] button[aria-label*="help" i],
+        [data-testid="stForm"] button[aria-label*="info" i] {
+            width: 24px !important;
+            height: 24px !important;
+            min-width: 24px !important;
+            min-height: 24px !important;
+            border-radius: 999px !important;
+            background: linear-gradient(165deg, #fffaf0, #fff3d9) !important;
+            border: 1px solid rgba(230, 0, 18, 0.4) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+            color: transparent !important;
+            position: relative !important;
+        }
+        [data-testid="stForm"] [data-testid*="stTooltipHoverTarget"] button svg,
+        [data-testid="stForm"] button[aria-label*="help" i] svg,
+        [data-testid="stForm"] button[aria-label*="info" i] svg {
+            opacity: 0 !important;
+        }
+        [data-testid="stForm"] [data-testid*="stTooltipHoverTarget"] button::before,
+        [data-testid="stForm"] button[aria-label*="help" i]::before,
+        [data-testid="stForm"] button[aria-label*="info" i]::before {
+            content: "💡";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -54%);
+            font-size: 13px;
+            line-height: 1;
+        }
+        [data-testid="stForm"] [data-testid*="stTooltipHoverTarget"] button:hover,
+        [data-testid="stForm"] button[aria-label*="help" i]:hover,
+        [data-testid="stForm"] button[aria-label*="info" i]:hover {
+            background: linear-gradient(165deg, #fffbe7, #ffefc6) !important;
+            border-color: rgba(230, 0, 18, 0.58) !important;
         }
         @media (max-width: 980px) {
             .outlier-title {
@@ -608,30 +913,10 @@ def _result_fingerprint(result_frame: pd.DataFrame, query: str) -> str:
 
 
 def _style_chart(fig, *, legend_title: Optional[str] = None):
-    fig.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#D7DDF0", family="Plus Jakarta Sans, Inter, system-ui"),
-        title_font=dict(size=18, family="Space Grotesk, Plus Jakarta Sans, system-ui", color="#F7F8FC"),
-        legend=dict(
-            bgcolor="rgba(20, 26, 49, 0.72)",
-            bordercolor="rgba(255,255,255,0.06)",
-            borderwidth=1,
-            font=dict(color="#D7DDF0"),
-        ),
-        legend_title_text=legend_title,
-        margin=dict(l=8, r=8, t=58, b=8),
-    )
-    fig.update_xaxes(
-        gridcolor="rgba(255,255,255,0.06)",
-        zerolinecolor="rgba(255,255,255,0.06)",
-        title_font=dict(color="#C9D2EC"),
-    )
-    fig.update_yaxes(
-        gridcolor="rgba(255,255,255,0.06)",
-        zerolinecolor="rgba(255,255,255,0.06)",
-        title_font=dict(color="#C9D2EC"),
-    )
+    apply_dashboard_chart_theme(fig)
+    fig.update_layout(legend_title_text=legend_title, margin=dict(l=16, r=16, t=68, b=72))
+    fig.update_xaxes(automargin=True, title_standoff=14)
+    fig.update_yaxes(automargin=True, title_standoff=14)
     return fig
 
 
@@ -847,7 +1132,7 @@ def _breakout_scatter(result_frame: pd.DataFrame):
         size="outlier_score",
         color="age_bucket",
         hover_name="video_title",
-        color_discrete_sequence=PURPLE_SCALE,
+        color_discrete_sequence=YT_CHART_SCALE,
         hover_data={
             "channel_title": True,
             "views": ":,",
@@ -858,9 +1143,9 @@ def _breakout_scatter(result_frame: pd.DataFrame):
         },
         title="Breakout Map",
         labels={
-            "subscribers_log10": "Channel Subscribers (Log10 + 1)",
+            "subscribers_log10": "Channel Size (log scale)",
             "views_per_day": "Views Per Day",
-            "age_bucket": "Publish Age Bucket",
+            "age_bucket": "How old the video is",
         },
     )
     fig.update_traces(
@@ -887,13 +1172,16 @@ def _age_bucket_chart(result_frame: pd.DataFrame):
         text="outlier_count",
         title="Outlier Score By Publish Age",
         labels={
-            "age_bucket": "Publish Age Bucket",
+            "age_bucket": "How old the video is",
             "median_outlier_score": "Median Outlier Score",
             "median_views_per_day": "Median Views Per Day",
         },
-        color_continuous_scale=PURPLE_SCALE,
+        color_continuous_scale=YT_CHART_SCALE,
     )
     fig.update_traces(
+        textposition="outside",
+        textfont=dict(size=12, color="#1d1d1f"),
+        cliponaxis=False,
         hovertemplate=(
             "<b>%{x}</b><br>"
             "Median Outlier Score: %{y:.1f}<br>"
@@ -913,13 +1201,17 @@ def _duration_chart(result_frame: pd.DataFrame):
         color="median_outlier_score",
         title="Winning Video Lengths",
         labels={
-            "duration_bucket": "Duration Bucket",
-            "outlier_count": "Outlier Count",
+            "duration_bucket": "Video Length",
+            "outlier_count": "Number Of Outliers",
             "median_outlier_score": "Median Outlier Score",
         },
-        color_continuous_scale=PURPLE_SCALE,
+        color_continuous_scale=YT_CHART_SCALE,
     )
     fig.update_traces(
+        texttemplate="%{y}",
+        textposition="outside",
+        textfont=dict(size=12, color="#1d1d1f"),
+        cliponaxis=False,
         hovertemplate=(
             "<b>%{x}</b><br>"
             "Outlier Count: %{y}<br>"
@@ -939,12 +1231,16 @@ def _title_pattern_chart(result_frame: pd.DataFrame):
         title="Repeated Title Structures",
         labels={
             "title_pattern": "Title Pattern",
-            "outlier_count": "Outlier Count",
+            "outlier_count": "Number Of Outliers",
             "median_outlier_score": "Median Outlier Score",
         },
-        color_continuous_scale=PURPLE_SCALE,
+        color_continuous_scale=YT_CHART_SCALE,
     )
     fig.update_traces(
+        texttemplate="%{y}",
+        textposition="outside",
+        textfont=dict(size=12, color="#1d1d1f"),
+        cliponaxis=False,
         hovertemplate=(
             "<b>%{x}</b><br>"
             "Outlier Count: %{y}<br>"
@@ -1084,6 +1380,13 @@ def _render_ai_report(report: OutlierAIReport) -> None:
         st.markdown('<div class="outlier-panel-note"><strong>Fallback Summary.</strong> The AI provider returned unstructured output for this run, so the text below is shown as plain summary copy.</div>', unsafe_allow_html=True)
         st.markdown(report.raw_fallback)
 
+    graph_insight_expander(
+        "AI Research output",
+        "**Executive headline** — one-line read of the niche scan. **Key takeaway** — supporting story. "
+        "**Breakout themes / title patterns / angles / anomalies** — evidence-style cards grounded in the table above. "
+        "**Next actions** — concrete tests; treat as hypotheses until validated with your own uploads and analytics.",
+    )
+
 
 def _render_methodology_section() -> None:
     _render_section_intro(
@@ -1183,23 +1486,6 @@ def render() -> None:
         "gemini": get_provider_key_count("gemini"),
         "openai": get_provider_key_count("openai"),
     }
-
-    st.markdown(
-        (
-            '<div class="outlier-hero">'
-            '<div class="outlier-kicker"><span class="outlier-kicker-dot"></span>Outlier Finder</div>'
-            '<div class="outlier-title">Discover Breakout Videos Before The Niche Catches Up</div>'
-            '<div class="outlier-subtitle">Scan any topic, filter the noise, and surface overperforming videos with clear research signals. Review the winners first, understand the pattern next, and layer AI interpretation only after the evidence is visible.</div>'
-            '<div class="outlier-trust-row">'
-            '<span class="outlier-pill">Public YouTube API Data</span>'
-            '<span class="outlier-pill">Explainable Outlier Scoring</span>'
-            '<span class="outlier-pill">Quota-Aware Query Caching</span>'
-            '<span class="outlier-pill">Structured AI Research</span>'
-            '</div>'
-            '</div>'
-        ),
-        unsafe_allow_html=True,
-    )
 
     prefill_note = st.session_state.pop("outlier_page_prefill_note", None)
     if prefill_note:
@@ -1517,7 +1803,12 @@ def render() -> None:
             )
             breakout_fig = _breakout_scatter(sorted_frame)
             breakout_fig.update_layout(height=400)
-            st.plotly_chart(breakout_fig, use_container_width=True)
+            show_plotly_chart(breakout_fig)
+            graph_insight_expander(
+                "Breakout map",
+                "Each point is a surfaced video. Axes combine **outlier score**, **views per day**, and **channel size** (see chart labels). "
+                "Look for clusters away from the bulk — those are unusual performances for their context.",
+            )
     with chart_top[1]:
         with st.container(border=True):
             _render_chart_shell(
@@ -1526,7 +1817,12 @@ def render() -> None:
             )
             age_fig = _age_bucket_chart(sorted_frame)
             age_fig.update_layout(height=400)
-            st.plotly_chart(age_fig, use_container_width=True)
+            show_plotly_chart(age_fig)
+            graph_insight_expander(
+                "Score by publish age",
+                "Shows whether high scores concentrate on **fresh uploads** vs **older catalog** wins. "
+                "A spike on recent ages can mean a fast-moving trend; spread across ages can mean evergreen demand.",
+            )
 
     chart_bottom = st.columns(3, gap="medium")
     with chart_bottom[0]:
@@ -1537,7 +1833,12 @@ def render() -> None:
             )
             duration_fig = _duration_chart(sorted_frame)
             duration_fig.update_layout(height=320)
-            st.plotly_chart(duration_fig, use_container_width=True)
+            show_plotly_chart(duration_fig)
+            graph_insight_expander(
+                "Winning lengths",
+                "Bars show how **outlier scores** stack up by **duration bucket** in this scan only. "
+                "Use it to guess runtime tests — always validate against your audience and production cost.",
+            )
     with chart_bottom[1]:
         with st.container(border=True):
             _render_chart_shell(
@@ -1546,7 +1847,12 @@ def render() -> None:
             )
             title_pattern_fig = _title_pattern_chart(sorted_frame)
             title_pattern_fig.update_layout(height=320)
-            st.plotly_chart(title_pattern_fig, use_container_width=True)
+            show_plotly_chart(title_pattern_fig)
+            graph_insight_expander(
+                "Title structures",
+                "Summarizes **recurring packaging patterns** (e.g., listicle vs story vs challenge) among top results. "
+                "Pairs well with the keyword chips and the AI **Title Pattern** cards below.",
+            )
     with chart_bottom[2]:
         with st.container(border=True):
             _render_chart_shell(
@@ -1555,9 +1861,16 @@ def render() -> None:
             )
             _render_scan_quality_card(sorted_frame)
 
-    _render_section_intro(
-        "AI Research",
-        "Turn the surfaced evidence into structured theme, title, angle, anomaly, and next-step cards after you review the results above.",
+    st.markdown(
+        (
+            '<div class="outlier-ai-section-head">AI Research</div>'
+            '<p style="color:#5F6368;font-size:14px;line-height:1.55;max-width:780px;margin:0 0 1rem;">'
+            "Turn the surfaced evidence into structured theme, title, angle, anomaly, and next-step cards "
+            "after you review the results above. Controls stay in the panel below; the report renders in "
+            "clear sections with highlighted titles."
+            "</p>"
+        ),
+        unsafe_allow_html=True,
     )
 
     available_providers = [provider for provider in ("gemini", "openai") if get_provider_key_count(provider) > 0]
@@ -1574,25 +1887,26 @@ def render() -> None:
         ):
             st.session_state["outlier_page_ai_provider"] = default_provider
 
-        provider_cols = st.columns([1.05, 1.2, 0.95], gap="small")
-        with provider_cols[0]:
-            provider = st.selectbox(
-                "AI Provider",
-                available_providers,
-                key="outlier_page_ai_provider",
-                format_func=lambda value: AI_PROVIDER_LABELS.get(value, value.title()),
-            )
-        models = AI_MODELS[provider]
-        if (
-            "outlier_page_ai_model" not in st.session_state
-            or st.session_state["outlier_page_ai_model"] not in models
-        ):
-            st.session_state["outlier_page_ai_model"] = models[0]
-        with provider_cols[1]:
-            model = st.selectbox("AI Model", models, key="outlier_page_ai_model")
-        with provider_cols[2]:
-            st.markdown('<div class="outlier-inline-field-label">Research Action</div>', unsafe_allow_html=True)
-            trigger_ai = st.button("Generate AI Research", type="primary", use_container_width=True)
+        with st.expander("Research controls — provider, model, and generate", expanded=True):
+            provider_cols = st.columns([1.05, 1.2, 0.95], gap="small")
+            with provider_cols[0]:
+                provider = st.selectbox(
+                    "AI Provider",
+                    available_providers,
+                    key="outlier_page_ai_provider",
+                    format_func=lambda value: AI_PROVIDER_LABELS.get(value, value.title()),
+                )
+            models = AI_MODELS[provider]
+            if (
+                "outlier_page_ai_model" not in st.session_state
+                or st.session_state["outlier_page_ai_model"] not in models
+            ):
+                st.session_state["outlier_page_ai_model"] = models[0]
+            with provider_cols[1]:
+                model = st.selectbox("AI Model", models, key="outlier_page_ai_model")
+            with provider_cols[2]:
+                st.markdown('<div class="outlier-inline-field-label">Research Action</div>', unsafe_allow_html=True)
+                trigger_ai = st.button("Generate AI Research", type="primary", use_container_width=True)
 
         fingerprint = _result_fingerprint(sorted_frame, result.request.niche_query)
         if st.session_state.get("outlier_page_ai_fingerprint") != fingerprint:

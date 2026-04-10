@@ -1,6 +1,10 @@
+[client]
+# "minimal" can confuse some hosts; "auto" keeps scrolling/nav reliable. Override locally if you prefer.
+toolbarMode = "auto"
+
 [theme]
-primaryColor = "#8B5CF6"
-backgroundColor = "#090B14"
-secondaryBackgroundColor = "#141A31"
-textColor = "#F7F8FC"
+primaryColor = "#FF0000"
+backgroundColor = "#F5F5F7"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#111216"
 font = "sans serif"
