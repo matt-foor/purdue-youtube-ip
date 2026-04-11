@@ -441,14 +441,21 @@ def _best_display_theme(payload: Dict[str, Any], which: str) -> str:
     if _is_placeholder_topic(fallback_label):
         fallback_label = "No Theme Yet"
 
-    topic_metrics_df = _display_topic_metrics_df(payload)
+    topic_metrics_df = _visible_topic_metrics_df(payload)
     if topic_metrics_df.empty or "topic_label" not in topic_metrics_df.columns:
         return fallback_label
 
     working = topic_metrics_df.copy()
-    if "median_views_per_day" in working.columns:
-        ascending = which != "strongest"
-        working = working.sort_values("median_views_per_day", ascending=ascending)
+    if which == "strongest":
+        if "trend_score" in working.columns:
+            working = working.sort_values("trend_score", ascending=False)
+        elif "median_views_per_day" in working.columns:
+            working = working.sort_values("median_views_per_day", ascending=False)
+    else:
+        if "median_views_per_day" in working.columns:
+            working = working.sort_values("median_views_per_day", ascending=True)
+        elif "trend_score" in working.columns:
+            working = working.sort_values("trend_score", ascending=True)
 
     for _, row in working.iterrows():
         candidate = _compact_topic_label(str(row.get("topic_label", "")))
@@ -464,6 +471,10 @@ def _prompt_topic_metrics_df(payload: Dict[str, Any]) -> pd.DataFrame:
         return display_df
     filtered = display_df[~display_df["topic_label"].astype(str).map(_is_placeholder_topic)].copy()
     return filtered if not filtered.empty else display_df
+
+
+def _visible_topic_metrics_df(payload: Dict[str, Any]) -> pd.DataFrame:
+    return _prompt_topic_metrics_df(payload)
 
 
 def _display_topic_metrics_df(payload: Dict[str, Any]) -> pd.DataFrame:
@@ -998,7 +1009,7 @@ def _render_summary_action_row(payload: Dict[str, Any]) -> None:
 def _render_overview_tab(payload: Dict[str, Any]) -> None:
     summary = payload["summary"]
     recommendations = payload.get("recommendations", {})
-    topic_metrics_df = _display_topic_metrics_df(payload)
+    topic_metrics_df = _visible_topic_metrics_df(payload)
     duration_metrics_df = payload.get("duration_metrics_df", pd.DataFrame())
     ai_actions = _generate_channel_insights_text(payload, "overview_actions", _overview_actions_prompt(payload, topic_metrics_df))
 
@@ -1083,7 +1094,7 @@ def _render_overview_tab(payload: Dict[str, Any]) -> None:
 
 
 def _render_topic_trends_tab(payload: Dict[str, Any]) -> None:
-    topic_metrics_df = _display_topic_metrics_df(payload)
+    topic_metrics_df = _visible_topic_metrics_df(payload)
     if topic_metrics_df.empty:
         st.markdown("<div class='ci-empty'>This channel needs more public uploads before theme clustering becomes stable.</div>", unsafe_allow_html=True)
         return
