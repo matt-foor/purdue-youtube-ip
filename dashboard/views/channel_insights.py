@@ -70,6 +70,7 @@ _DISPLAY_ACRONYMS = {
     "ui": "UI",
     "ux": "UX",
 }
+_PLACEHOLDER_TOPICS = {"", "n/a", "no theme yet", "no pattern yet", "unassigned"}
 
 
 def _inject_channel_insights_css() -> None:
@@ -429,6 +430,42 @@ def _compact_topic_label(label: str) -> str:
     return _format_topic_token(tokens[0])
 
 
+def _is_placeholder_topic(label: str) -> bool:
+    return str(label or "").strip().lower() in _PLACEHOLDER_TOPICS
+
+
+def _best_display_theme(payload: Dict[str, Any], which: str) -> str:
+    summary = payload.get("summary", {}) or {}
+    summary_key = "strongest_theme" if which == "strongest" else "weakest_theme"
+    fallback_label = _compact_topic_label(str(summary.get(summary_key, "No Theme Yet")))
+    if _is_placeholder_topic(fallback_label):
+        fallback_label = "No Theme Yet"
+
+    topic_metrics_df = _display_topic_metrics_df(payload)
+    if topic_metrics_df.empty or "topic_label" not in topic_metrics_df.columns:
+        return fallback_label
+
+    working = topic_metrics_df.copy()
+    if "median_views_per_day" in working.columns:
+        ascending = which != "strongest"
+        working = working.sort_values("median_views_per_day", ascending=ascending)
+
+    for _, row in working.iterrows():
+        candidate = _compact_topic_label(str(row.get("topic_label", "")))
+        if not _is_placeholder_topic(candidate):
+            return candidate
+
+    return fallback_label
+
+
+def _prompt_topic_metrics_df(payload: Dict[str, Any]) -> pd.DataFrame:
+    display_df = _display_topic_metrics_df(payload)
+    if display_df.empty or "topic_label" not in display_df.columns:
+        return display_df
+    filtered = display_df[~display_df["topic_label"].astype(str).map(_is_placeholder_topic)].copy()
+    return filtered if not filtered.empty else display_df
+
+
 def _display_topic_metrics_df(payload: Dict[str, Any]) -> pd.DataFrame:
     topic_metrics_df = payload.get("topic_metrics_df", pd.DataFrame())
     if topic_metrics_df.empty:
@@ -626,9 +663,9 @@ def _render_ai_card(title: str, body: str, *, empty_message: str = "") -> None:
 
 def _overview_actions_prompt(payload: Dict[str, Any], display_topic_metrics_df: pd.DataFrame) -> str:
     summary = dict(payload.get("summary", {}))
-    summary["strongest_theme"] = _compact_topic_label(str(summary.get("strongest_theme", "")))
-    summary["weakest_theme"] = _compact_topic_label(str(summary.get("weakest_theme", "")))
-    topic_records = display_topic_metrics_df.to_dict(orient="records")
+    summary["strongest_theme"] = _best_display_theme(payload, "strongest")
+    summary["weakest_theme"] = _best_display_theme(payload, "weakest")
+    topic_records = _prompt_topic_metrics_df(payload).to_dict(orient="records")
     duration_records = payload.get("duration_metrics_df", pd.DataFrame()).to_dict(orient="records")
     title_records = payload.get("title_pattern_metrics_df", pd.DataFrame()).to_dict(orient="records")
     return (
@@ -645,7 +682,9 @@ def _overview_actions_prompt(payload: Dict[str, Any], display_topic_metrics_df: 
 
 def _topic_trends_prompt(payload: Dict[str, Any], display_topic_metrics_df: pd.DataFrame) -> str:
     summary = dict(payload.get("summary", {}))
-    topic_records = display_topic_metrics_df.to_dict(orient="records")
+    summary["strongest_theme"] = _best_display_theme(payload, "strongest")
+    summary["weakest_theme"] = _best_display_theme(payload, "weakest")
+    topic_records = _prompt_topic_metrics_df(payload).to_dict(orient="records")
     return (
         "You are writing a concise analyst note for the Topic Trends tab of a YouTube creator dashboard.\n"
         "Return 3 short markdown bullet points. Focus on momentum, strongest themes, weak themes, and breakout potential.\n"
@@ -675,7 +714,7 @@ def _formats_prompt(payload: Dict[str, Any]) -> str:
     )
 
 
-def _render_summary_kpi_cards(summary: Dict[str, Any], deltas: Dict[str, Any]) -> None:
+def _render_summary_kpi_cards(summary: Dict[str, Any], deltas: Dict[str, Any], payload: Dict[str, Any]) -> None:
     cards = [
         {
             "label": "Upload Cadence",
@@ -689,12 +728,12 @@ def _render_summary_kpi_cards(summary: Dict[str, Any], deltas: Dict[str, Any]) -
         },
         {
             "label": "Strongest Theme",
-            "value": _compact_topic_label(str(summary.get("strongest_theme", "N/A"))),
+            "value": _best_display_theme(payload, "strongest"),
             "delta": None,
         },
         {
             "label": "Weakest Theme",
-            "value": _compact_topic_label(str(summary.get("weakest_theme", "N/A"))),
+            "value": _best_display_theme(payload, "weakest"),
             "delta": None,
         },
         {
@@ -953,7 +992,7 @@ def _render_summary_action_row(payload: Dict[str, Any]) -> None:
         st.warning(topic_model_failure_reason or "BERTopic beta mode could not run for this snapshot, so the page fell back to heuristic topics.")
 
     deltas = payload.get("history_delta", {})
-    _render_summary_kpi_cards(summary, deltas)
+    _render_summary_kpi_cards(summary, deltas, payload)
 
 
 def _render_overview_tab(payload: Dict[str, Any]) -> None:
