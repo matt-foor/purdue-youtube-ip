@@ -34,6 +34,7 @@ STATE_KEYS = (
     "channel_insights_topic_mode",
     "channel_insights_error",
 )
+_CHANNEL_INSIGHTS_LLM_VERSION = "v2"
 
 _TOPIC_LABEL_NOISE = {
     "video",
@@ -441,7 +442,7 @@ def _best_display_theme(payload: Dict[str, Any], which: str) -> str:
     if _is_placeholder_topic(fallback_label):
         fallback_label = "No Theme Yet"
 
-    topic_metrics_df = _visible_topic_metrics_df(payload)
+    topic_metrics_df = _stable_topic_metrics_df(payload)
     if topic_metrics_df.empty or "topic_label" not in topic_metrics_df.columns:
         return fallback_label
 
@@ -475,6 +476,47 @@ def _prompt_topic_metrics_df(payload: Dict[str, Any]) -> pd.DataFrame:
 
 def _visible_topic_metrics_df(payload: Dict[str, Any]) -> pd.DataFrame:
     return _prompt_topic_metrics_df(payload)
+
+
+def _stable_topic_metrics_df(payload: Dict[str, Any]) -> pd.DataFrame:
+    topic_metrics_df = _visible_topic_metrics_df(payload)
+    if topic_metrics_df.empty:
+        return topic_metrics_df
+
+    stable_mask = (
+        topic_metrics_df.get("video_count", pd.Series(dtype=float)).fillna(0).astype(float) >= 2
+    ) | (
+        topic_metrics_df.get("recent_video_count", pd.Series(dtype=float)).fillna(0).astype(float) >= 2
+    ) | (
+        topic_metrics_df.get("outlier_count", pd.Series(dtype=float)).fillna(0).astype(float) >= 2
+    )
+    stable_df = topic_metrics_df[stable_mask].copy()
+    if stable_df.empty:
+        return topic_metrics_df
+    return stable_df.sort_values(
+        ["trend_score", "video_count", "median_views_per_day"],
+        ascending=[False, False, False],
+    )
+
+
+def _stable_duration_metrics_df(payload: Dict[str, Any]) -> pd.DataFrame:
+    duration_metrics_df = payload.get("duration_metrics_df", pd.DataFrame())
+    if duration_metrics_df.empty or "videos" not in duration_metrics_df.columns:
+        return duration_metrics_df
+    stable_df = duration_metrics_df[duration_metrics_df["videos"].fillna(0).astype(float) >= 2].copy()
+    if stable_df.empty:
+        return duration_metrics_df
+    return stable_df.sort_values(["median_views_per_day", "videos"], ascending=[False, False])
+
+
+def _stable_title_pattern_metrics_df(payload: Dict[str, Any]) -> pd.DataFrame:
+    title_pattern_metrics_df = payload.get("title_pattern_metrics_df", pd.DataFrame())
+    if title_pattern_metrics_df.empty or "videos" not in title_pattern_metrics_df.columns:
+        return title_pattern_metrics_df
+    stable_df = title_pattern_metrics_df[title_pattern_metrics_df["videos"].fillna(0).astype(float) >= 2].copy()
+    if stable_df.empty:
+        return title_pattern_metrics_df
+    return stable_df.sort_values(["median_views_per_day", "videos"], ascending=[False, False])
 
 
 def _display_topic_metrics_df(payload: Dict[str, Any]) -> pd.DataFrame:
@@ -601,6 +643,7 @@ def _llm_cache_key(payload: Dict[str, Any], section: str) -> str:
     return "::".join(
         [
             "channel_insights_llm",
+            _CHANNEL_INSIGHTS_LLM_VERSION,
             section,
             str(payload.get("channel", {}).get("channel_id", "")),
             str(summary.get("snapshot_at", "")),
@@ -676,16 +719,18 @@ def _overview_actions_prompt(payload: Dict[str, Any], display_topic_metrics_df: 
     summary = dict(payload.get("summary", {}))
     summary["strongest_theme"] = _best_display_theme(payload, "strongest")
     summary["weakest_theme"] = _best_display_theme(payload, "weakest")
-    topic_records = _prompt_topic_metrics_df(payload).to_dict(orient="records")
-    duration_records = payload.get("duration_metrics_df", pd.DataFrame()).to_dict(orient="records")
-    title_records = payload.get("title_pattern_metrics_df", pd.DataFrame()).to_dict(orient="records")
+    topic_records = _stable_topic_metrics_df(payload).to_dict(orient="records")
+    duration_records = _stable_duration_metrics_df(payload).to_dict(orient="records")
+    title_records = _stable_title_pattern_metrics_df(payload).to_dict(orient="records")
     return (
         "You are generating next-action recommendations for a YouTube creator analytics dashboard.\n"
         "Return exactly 4 markdown bullet points. Each bullet must be one actionable sentence.\n"
-        "Use only the provided channel data. Mention concrete themes, formats, cadence, or packaging where relevant.\n\n"
+        "Use only the provided channel data. Mention concrete themes, formats, cadence, or packaging where relevant.\n"
+        "Prioritize repeated patterns over one-off spikes. Do not make a theme the centerpiece of a recommendation if it only has one supporting video unless there are no stronger repeated themes.\n"
+        "Prefer themes with multiple videos, stronger trend score, and solid median views per day.\n\n"
         f"Channel: {payload.get('channel', {}).get('channel_title', '')}\n"
         f"Summary: {json.dumps(summary, ensure_ascii=True, default=str)}\n"
-        f"Topic Metrics: {_serialize_records(topic_records, fields=['topic_label', 'video_count', 'median_views_per_day', 'trend_score', 'outlier_count'])}\n"
+        f"Stable Topic Metrics: {_serialize_records(topic_records, fields=['topic_label', 'video_count', 'recent_video_count', 'median_views_per_day', 'trend_score', 'outlier_count'])}\n"
         f"Duration Metrics: {_serialize_records(duration_records, fields=['duration_bucket', 'median_views_per_day', 'videos'])}\n"
         f"Title Pattern Metrics: {_serialize_records(title_records, fields=['title_pattern', 'median_views_per_day', 'videos'])}"
     )
@@ -695,27 +740,30 @@ def _topic_trends_prompt(payload: Dict[str, Any], display_topic_metrics_df: pd.D
     summary = dict(payload.get("summary", {}))
     summary["strongest_theme"] = _best_display_theme(payload, "strongest")
     summary["weakest_theme"] = _best_display_theme(payload, "weakest")
-    topic_records = _prompt_topic_metrics_df(payload).to_dict(orient="records")
+    topic_records = _stable_topic_metrics_df(payload).to_dict(orient="records")
     return (
         "You are writing a concise analyst note for the Topic Trends tab of a YouTube creator dashboard.\n"
         "Return 3 short markdown bullet points. Focus on momentum, strongest themes, weak themes, and breakout potential.\n"
-        "Do not invent metrics; use only the data provided.\n\n"
+        "Do not invent metrics; use only the data provided.\n"
+        "Prioritize repeated themes with multiple supporting videos over one-off spikes.\n\n"
         f"Channel: {payload.get('channel', {}).get('channel_title', '')}\n"
         f"Summary: {json.dumps(summary, ensure_ascii=True, default=str)}\n"
-        f"Topic Metrics: {_serialize_records(topic_records, limit=10, fields=['topic_label', 'video_count', 'median_views_per_day', 'trend_score', 'outlier_count', 'avg_engagement'])}"
+        f"Stable Topic Metrics: {_serialize_records(topic_records, limit=10, fields=['topic_label', 'video_count', 'recent_video_count', 'median_views_per_day', 'trend_score', 'outlier_count', 'avg_engagement'])}"
     )
 
 
 def _formats_prompt(payload: Dict[str, Any]) -> str:
     summary = dict(payload.get("summary", {}))
-    duration_records = payload.get("duration_metrics_df", pd.DataFrame()).to_dict(orient="records")
-    title_records = payload.get("title_pattern_metrics_df", pd.DataFrame()).to_dict(orient="records")
+    summary["strongest_theme"] = _best_display_theme(payload, "strongest")
+    duration_records = _stable_duration_metrics_df(payload).to_dict(orient="records")
+    title_records = _stable_title_pattern_metrics_df(payload).to_dict(orient="records")
     day_records = payload.get("publish_day_metrics_df", pd.DataFrame()).to_dict(orient="records")
     hour_records = payload.get("publish_hour_metrics_df", pd.DataFrame()).to_dict(orient="records")
     return (
         "You are writing a concise analyst note for the Formats & Patterns tab of a YouTube creator dashboard.\n"
         "Return 3 short markdown bullet points. Focus on winning duration buckets, title patterns, and timing signals.\n"
-        "Do not invent metrics; use only the data provided.\n\n"
+        "Do not invent metrics; use only the data provided.\n"
+        "Prefer format recommendations that are supported by repeated evidence, not single-video anomalies.\n\n"
         f"Channel: {payload.get('channel', {}).get('channel_title', '')}\n"
         f"Summary: {json.dumps(summary, ensure_ascii=True, default=str)}\n"
         f"Duration Metrics: {_serialize_records(duration_records, fields=['duration_bucket', 'median_views_per_day', 'videos', 'avg_engagement'])}\n"
@@ -777,6 +825,48 @@ def _render_summary_kpi_cards(summary: Dict[str, Any], deltas: Dict[str, Any], p
                 """,
                 unsafe_allow_html=True,
             )
+
+
+def _fallback_overview_actions(payload: Dict[str, Any]) -> List[str]:
+    actions: List[str] = []
+    summary = payload.get("summary", {})
+    strongest_theme = _best_display_theme(payload, "strongest")
+    weakest_theme = _best_display_theme(payload, "weakest")
+    duration_metrics_df = _stable_duration_metrics_df(payload)
+    title_pattern_metrics_df = _stable_title_pattern_metrics_df(payload)
+
+    if strongest_theme and not _is_placeholder_topic(strongest_theme):
+        actions.append(
+            f"Double down on {strongest_theme} because it is the strongest repeated theme in the current window."
+        )
+    if weakest_theme and not _is_placeholder_topic(str(weakest_theme)) and weakest_theme != strongest_theme:
+        actions.append(
+            f"De-prioritize {weakest_theme} unless you can repackage it with a stronger angle or clearer format promise."
+        )
+    if not duration_metrics_df.empty:
+        best_duration = str(duration_metrics_df.iloc[0].get("duration_bucket", "")).strip()
+        if best_duration:
+            actions.append(
+                f"Lean further into the {best_duration} duration bucket because it is the strongest repeated format signal."
+            )
+    if not title_pattern_metrics_df.empty:
+        best_title_pattern = str(title_pattern_metrics_df.iloc[0].get("title_pattern", "")).strip()
+        if best_title_pattern:
+            actions.append(
+                f"Test more {best_title_pattern} packaging since it is the title pattern with the best repeated evidence."
+            )
+
+    upload_gap_days = float(summary.get("avg_upload_gap_days", 0) or 0)
+    if upload_gap_days > 0:
+        actions.append(
+            f"Your average upload gap is {upload_gap_days:.1f} days, so tightening cadence could help the strongest themes compound faster."
+        )
+
+    deduped: List[str] = []
+    for action in actions:
+        if action not in deduped:
+            deduped.append(action)
+    return deduped[:4]
 
 
 def _queue_outlier_finder_theme(theme: str, channel_title: str) -> None:
@@ -1051,7 +1141,7 @@ def _render_overview_tab(payload: Dict[str, Any]) -> None:
             unsafe_allow_html=True,
         )
 
-        fallback_actions = recommendations.get("actions", [])
+        fallback_actions = _fallback_overview_actions(payload)
         if ai_actions:
             _render_ai_card("Recommended Next Actions", ai_actions)
         elif fallback_actions:
