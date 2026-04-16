@@ -5,9 +5,6 @@ from typing import Any, Sequence, Tuple
 
 import streamlit as st
 
-# Fixed card height so every Control Centre feature reads as the same symmetric glass tile.
-_CC_CARD_HEIGHT_PX = 280
-
 
 def _inject_control_centre_css() -> None:
     st.markdown(
@@ -30,16 +27,20 @@ def _inject_control_centre_css() -> None:
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
         }
         .control-centre-nav-head {
-            margin: 0.35rem 0 0.4rem;
+            margin: 0.35rem auto 0.4rem;
             font-size: 1.35rem;
             font-weight: 800;
             color: #17181c;
             font-family: var(--app-font-display);
+            text-align: center;
+            max-width: 36rem;
         }
         .control-centre-nav-copy {
             color: #4e5563;
-            margin-bottom: 0.75rem;
-            max-width: 920px;
+            margin: 0 auto 0.65rem;
+            max-width: 36rem;
+            text-align: center;
+            text-wrap: balance;
         }
         /*
          * Scope layout fixes by :has(.cc-feature-card-title) — not by section[data-testid="stMain"].
@@ -50,7 +51,7 @@ def _inject_control_centre_css() -> None:
             justify-content: center !important;
             align-items: flex-start !important;
             flex-wrap: wrap !important;
-            gap: 1.25rem !important;
+            gap: 0.85rem 1.1rem !important;
             width: 100% !important;
         }
         [data-testid="stHorizontalBlock"]:has(.cc-feature-card-title) [data-testid="column"] {
@@ -62,21 +63,18 @@ def _inject_control_centre_css() -> None:
             flex-direction: column !important;
             align-items: center !important;
         }
-        /* Uniform glass cards — only blocks that contain Control Centre card titles. */
+        /* Compact glass cards: hug title + description + button (no fixed tall tile). */
         [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) {
-            margin-bottom: 0.9rem !important;
+            margin-bottom: 0.65rem !important;
             width: fit-content !important;
-            max-width: min(100%, 380px) !important;
+            max-width: min(100%, 20.5rem) !important;
             margin-left: auto !important;
             margin-right: auto !important;
             box-sizing: border-box !important;
-            min-height: """
-        + f"{_CC_CARD_HEIGHT_PX}px !important;\n            height: {_CC_CARD_HEIGHT_PX}px !important;\n"
-        + """
             display: flex !important;
             flex-direction: column !important;
-            padding: 0.9rem 1rem 0.95rem !important;
-            border-radius: 18px !important;
+            padding: 0.55rem 0.75rem 0.6rem !important;
+            border-radius: 14px !important;
             background: linear-gradient(
                 165deg,
                 rgba(246, 251, 255, 0.96),
@@ -97,25 +95,37 @@ def _inject_control_centre_css() -> None:
                 inset 0 1px 0 rgba(255, 255, 255, 1) !important;
         }
         [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) > div {
-            flex: 1 1 auto !important;
+            flex: 0 0 auto !important;
             display: flex !important;
             flex-direction: column !important;
+            align-items: center !important;
+            width: 100% !important;
             min-height: 0 !important;
         }
         [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) [data-testid="stVerticalBlock"] {
-            flex: 1 1 auto !important;
+            flex: 0 0 auto !important;
             display: flex !important;
             flex-direction: column !important;
-            gap: 0.35rem !important;
+            align-items: center !important;
+            gap: 0.4rem !important;
+            width: 100% !important;
         }
-        /* Pin primary action to bottom of the card */
-        [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:last-child {
-            margin-top: auto !important;
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"] {
+            display: flex !important;
+            justify-content: center !important;
+            width: 100% !important;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) [data-testid="stMarkdownContainer"] {
+            text-align: center !important;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) [data-testid="stMarkdownContainer"] p {
+            text-align: center !important;
         }
         /* Streamlit wraps buttons in a full-width flex row; force content-sized CTA. */
         [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) div[data-testid="stElementContainer"]:has(.stButton) {
             width: fit-content !important;
             max-width: 100% !important;
+            align-self: center !important;
         }
         [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) .stButton {
             width: fit-content !important;
@@ -127,21 +137,23 @@ def _inject_control_centre_css() -> None:
         }
         .cc-feature-card-title {
             font-family: var(--app-font-display);
-            font-size: 1.12rem;
+            font-size: 1.05rem;
             font-weight: 800;
             color: #14161b;
-            margin: 0 0 0.35rem;
-            line-height: 1.25;
-            max-width: 20rem;
+            margin: 0;
+            line-height: 1.28;
+            max-width: 18.5rem;
+            text-align: center;
+            text-wrap: balance;
         }
         .cc-feature-card-desc {
-            font-size: 0.93rem;
+            font-size: 0.9rem;
             color: #4e5563;
-            line-height: 1.48;
+            line-height: 1.45;
             margin: 0;
-            flex: 1 1 auto;
-            min-height: 3.25em;
-            max-width: 20rem;
+            max-width: 18.5rem;
+            text-align: center;
+            text-wrap: balance;
         }
         </style>
         """,
@@ -174,7 +186,7 @@ def render(nav_targets: Sequence[Tuple[str, str, Any, str]]) -> None:
     cols = st.columns(2, gap="medium")
     for idx, (title, description, page_obj, icon) in enumerate(nav_targets):
         with cols[idx % 2]:
-            with st.container(height=_CC_CARD_HEIGHT_PX, border=True):
+            with st.container(border=True):
                 st.markdown(
                     f'<div class="cc-feature-card-title">{escape(title)}</div>',
                     unsafe_allow_html=True,
