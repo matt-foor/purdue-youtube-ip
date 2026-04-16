@@ -24,7 +24,7 @@ PAGE_HERO: Dict[str, Tuple[str, str, str, Tuple[str, ...]]] = {
     ),
     "Download Hub": (
         "DOWNLOAD HUB",
-        "One place for thumbnail ideas, exports, and public YouTube media downloads.",
+        "Grab thumbnails, deep metadata, and ready-to-use media—without breaking your creative flow.",
         "Use the Thumbnails tab to generate concepts with your AI providers or pull the public thumbnail from any video. Switch to Video downloads for single links, batches, or playlists—metadata, transcripts, audio, and video where available.",
         ("Thumbnails & media", "Single & batch", "Consistent glass UI"),
     ),

@@ -127,6 +127,7 @@ def _inject_tools_css() -> None:
             line-height: 1.65;
             max-width: 760px;
             margin: 0 auto;
+            text-align: center;
         }
         .tools-pill-row {
             display: flex;

@@ -324,6 +324,7 @@ def _inject_ytuber_css() -> None:
             max-width: 680px;
             margin: 0 auto;
             font-weight: 500;
+            text-align: center;
         }
         .ytuber-search-meta {
             margin-top: 0.9rem;

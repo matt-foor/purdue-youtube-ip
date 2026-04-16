@@ -117,6 +117,7 @@ def _inject_page_css() -> None:
             line-height:1.62;
             max-width:760px;
             margin:0 auto;
+            text-align:center;
         }
         .thumb-card {
             border-radius:24px;
