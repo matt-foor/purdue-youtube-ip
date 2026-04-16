@@ -1,331 +1,626 @@
-import os
-import re
-import sys
-from collections import Counter
-from datetime import datetime
+from __future__ import annotations
+
+from datetime import datetime, timezone
 from pathlib import Path
 
-import pandas as pd
 import streamlit as st
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-try:
-    from dotenv import load_dotenv
-except Exception:
-    load_dotenv = None
-
-from dashboard.components.visualizations import (
-    kpi_row,
-    section_header,
-    styled_dataframe,
-    styled_keyword_chips,
-)
+from dashboard.components.visualizations import graph_insight_expander, section_header
 from src.llm_integration.thumbnail_generator import ThumbnailGenerator, get_api_key
+from src.services.thumbnail_hub_service import PreparedThumbnailArtifact, ThumbnailPreview, prepare_thumbnail_download, preview_thumbnail_target
+from src.utils.api_keys import get_provider_key_count
+from src.utils.file_utils import cleanup_temp_dirs
 
 
-if load_dotenv:
-    load_dotenv()
+THUMBNAILS_STATE_KEYS = (
+    "thumbnails_preview",
+    "thumbnails_download_artifact",
+    "thumbnails_error",
+    "thumbnails_temp_paths",
+)
 
-BASE_DATA_DIR = os.path.join("data", "youtube api data")
-CATEGORY_FILES = {
-    "Research / Science": "research_science_channels_videos.csv",
-    "Tech": "tech_channels_videos.csv",
-    "Gaming": "gaming_channels_videos.csv",
-    "Entertainment": "entertainment_channels_videos.csv",
+PROVIDER_LABELS = {
+    "gemini": "Gemini",
+    "openai": "OpenAI / ChatGPT",
 }
-ALL_LABEL = "All Categories"
-STOPWORDS = {
-    "the", "a", "an", "to", "of", "in", "for", "with", "on", "and", "or", "at", "is", "are", "was", "were",
-    "this", "that", "how", "why", "what", "when", "from", "your", "you", "my", "we", "our", "it",
+
+IMAGE_MODEL_CATALOG = {
+    "gemini": [
+        {
+            "id": "gemini-2.5-flash-image",
+            "label": "Gemini 2.5 Flash Image",
+            "summary": "Fastest option for thumbnail ideation with strong prompt adherence.",
+            "per_image": 0.039,
+            "size_options": ["1024x1024"],
+            "quality_options": ["standard"],
+        },
+    ],
+    "openai": [
+        {
+            "id": "gpt-image-1.5",
+            "label": "GPT Image 1.5",
+            "summary": "Highest-quality thumbnail rendering with flexible formats and background control.",
+            "pricing": {
+                "low": {"1024x1024": 0.009, "1024x1536": 0.013, "1536x1024": 0.013},
+                "medium": {"1024x1024": 0.034, "1024x1536": 0.050, "1536x1024": 0.050},
+                "high": {"1024x1024": 0.133, "1024x1536": 0.200, "1536x1024": 0.200},
+            },
+            "size_options": ["1024x1024", "1024x1536", "1536x1024"],
+            "quality_options": ["low", "medium", "high"],
+            "background_options": ["opaque", "transparent"],
+            "format_options": ["png", "webp", "jpeg"],
+        },
+        {
+            "id": "gpt-image-1-mini",
+            "label": "GPT Image 1 Mini",
+            "summary": "Lower-cost thumbnail iteration when you want a few fast visual angles.",
+            "pricing": {
+                "low": {"1024x1024": 0.005, "1024x1536": 0.006, "1536x1024": 0.006},
+                "medium": {"1024x1024": 0.011, "1024x1536": 0.015, "1536x1024": 0.015},
+                "high": {"1024x1024": 0.036, "1024x1536": 0.052, "1536x1024": 0.052},
+            },
+            "size_options": ["1024x1024", "1024x1536", "1536x1024"],
+            "quality_options": ["low", "medium", "high"],
+            "background_options": ["opaque", "transparent"],
+            "format_options": ["png", "webp", "jpeg"],
+        },
+    ],
 }
 
 
-def _dataset_path_for_label(label: str) -> str:
-    filename = CATEGORY_FILES.get(label) or CATEGORY_FILES.get("Research / Science")
-    return os.path.join(BASE_DATA_DIR, filename)
-
-
-def _available_categories() -> list[str]:
-    labels: list[str] = []
-    for label, filename in CATEGORY_FILES.items():
-        path = os.path.join(BASE_DATA_DIR, filename)
-        if os.path.exists(path):
-            labels.append(label)
-    if labels:
-        return [ALL_LABEL] + labels
-    return list(CATEGORY_FILES.keys())
-
-
-def _load_recommendation_data_for_label(label: str) -> pd.DataFrame:
-    frames: list[pd.DataFrame] = []
-
-    if label == ALL_LABEL:
-        for filename in CATEGORY_FILES.values():
-            path = os.path.join(BASE_DATA_DIR, filename)
-            if os.path.exists(path):
-                frames.append(pd.read_csv(path))
-        if not frames:
-            return pd.DataFrame()
-        df = pd.concat(frames, ignore_index=True)
-    else:
-        dataset_path = _dataset_path_for_label(label)
-        if not os.path.exists(dataset_path):
-            return pd.DataFrame()
-        df = pd.read_csv(dataset_path)
-
-    for col in ["views", "likes", "comments"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-    df["video_publishedAt"] = pd.to_datetime(
-        df["video_publishedAt"], errors="coerce", utc=True
+def _inject_page_css() -> None:
+    st.markdown(
+        """
+        <style>
+        .thumb-page {
+            max-width: var(--app-page-width);
+            margin: 0 auto;
+        }
+        .thumb-hero {
+            max-width: 920px;
+            margin: 0 auto 1.4rem;
+            text-align: center;
+        }
+        .thumb-kicker {
+            display:inline-flex;
+            align-items:center;
+            gap:0.5rem;
+            padding:0.45rem 0.78rem;
+            border-radius:999px;
+            background:rgba(255,255,255,0.05);
+            border:1px solid rgba(255,255,255,0.08);
+            color:#F7F8FC;
+            font-size:12px;
+            letter-spacing:0.1em;
+            text-transform:uppercase;
+            margin-bottom:0.95rem;
+        }
+        .thumb-kicker-dot {
+            width:8px;
+            height:8px;
+            border-radius:999px;
+            background:linear-gradient(180deg,#FF0000,#00D4FF);
+            box-shadow:0 0 16px rgba(255,0,0,0.45);
+        }
+        .thumb-title {
+            font-family:"Inter",system-ui,sans-serif;
+            font-size:clamp(34px,3.8vw,50px);
+            line-height:1.02;
+            font-weight:700;
+            color:#F7F8FC;
+            letter-spacing:-0.04em;
+            margin-bottom:0.8rem;
+        }
+        .thumb-subtitle {
+            color:#B8C1DA;
+            font-size:16px;
+            line-height:1.62;
+            max-width:640px;
+            margin:0 auto;
+            text-align:center;
+            text-wrap:balance;
+        }
+        .thumb-card {
+            border-radius:24px;
+            border:1px solid rgba(255,255,255,0.08);
+            background:
+                radial-gradient(circle at top left, rgba(255, 0, 0, 0.12) 0%, transparent 32%),
+                radial-gradient(circle at top right, rgba(0, 212, 255, 0.08) 0%, transparent 28%),
+                linear-gradient(180deg, rgba(22, 33, 62, 0.95) 0%, rgba(15, 15, 35, 0.98) 100%);
+            box-shadow:0 20px 46px rgba(3, 6, 20, 0.40);
+            padding:1.1rem 1.2rem;
+            margin-bottom:1rem;
+        }
+        .thumb-card-title {
+            font-family:"Inter",system-ui,sans-serif;
+            color:#F7F8FC;
+            font-size:20px;
+            font-weight:700;
+            margin-bottom:0.25rem;
+        }
+        .thumb-card-copy {
+            color:#B8C1DA;
+            font-size:13px;
+            line-height:1.58;
+        }
+        .thumb-metric {
+            padding:0.85rem 0.95rem;
+            border-radius:18px;
+            background:rgba(255,255,255,0.03);
+            border:1px solid rgba(255,255,255,0.06);
+            margin-bottom:0.8rem;
+        }
+        .thumb-metric-label {
+            color:#8993B2;
+            font-size:11px;
+            text-transform:uppercase;
+            letter-spacing:0.08em;
+            margin-bottom:0.22rem;
+        }
+        .thumb-metric-value {
+            color:#F7F8FC;
+            font-size:22px;
+            font-weight:700;
+        }
+        .thumb-gallery-card {
+            padding:0.8rem;
+            border-radius:18px;
+            border:1px solid rgba(255,255,255,0.06);
+            background:rgba(255,255,255,0.03);
+            margin-bottom:0.85rem;
+        }
+        .thumb-empty {
+            padding:1rem 1.1rem;
+            border-radius:20px;
+            border:1px dashed rgba(255,255,255,0.12);
+            background:rgba(255,255,255,0.02);
+            color:#B8C1DA;
+            font-size:13px;
+            line-height:1.6;
+        }
+        /* Light glass */
+        .thumb-card {
+            background: rgba(255, 255, 255, 0.92) !important;
+            border: 1px solid rgba(0, 0, 0, 0.1) !important;
+            box-shadow: 0 16px 44px rgba(0, 0, 0, 0.1) !important;
+        }
+        .thumb-card-title { color: #1d1d1f !important; }
+        .thumb-card-copy { color: #424245 !important; }
+        .thumb-metric {
+            background: rgba(255, 255, 255, 0.95) !important;
+            border: 1px solid rgba(0, 0, 0, 0.08) !important;
+        }
+        .thumb-metric-label { color: #6e6e73 !important; }
+        .thumb-metric-value { color: #1d1d1f !important; }
+        .thumb-empty {
+            border: 1px dashed rgba(0, 0, 0, 0.15) !important;
+            background: rgba(255, 255, 255, 0.85) !important;
+            color: #6e6e73 !important;
+        }
+        /* Thumbnails page controls: force light glass fields (no dark fallbacks) */
+        .thumb-page [data-testid="stWidgetLabel"] p,
+        .thumb-page [data-testid="stWidgetLabel"] label,
+        .thumb-page [data-testid="stWidgetLabel"] span {
+            color: #1d1d1f !important;
+            opacity: 1 !important;
+            font-weight: 600 !important;
+        }
+        .thumb-page .stTextInput > div > div > input,
+        .thumb-page .stTextArea textarea,
+        .thumb-page [data-baseweb="input"] > div,
+        .thumb-page [data-baseweb="textarea"] > div,
+        .thumb-page [data-baseweb="select"] > div,
+        .thumb-page .stSelectbox > div > div {
+            background: linear-gradient(165deg, rgba(255, 255, 255, 1), rgba(240, 244, 250, 0.98)) !important;
+            color: #1d1d1f !important;
+            border: 1px solid rgba(0, 0, 0, 0.16) !important;
+            border-radius: 14px !important;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 1),
+                0 6px 16px rgba(0, 0, 0, 0.08) !important;
+        }
+        .thumb-page [data-baseweb="input"] input,
+        .thumb-page [data-baseweb="textarea"] textarea,
+        .thumb-page .stTextInput input,
+        .thumb-page .stTextArea textarea {
+            color: #1d1d1f !important;
+            caret-color: #1d1d1f !important;
+            background: transparent !important;
+        }
+        .thumb-page .stTextInput input::placeholder,
+        .thumb-page .stTextArea textarea::placeholder {
+            color: #6e6e73 !important;
+            opacity: 1 !important;
+        }
+        .thumb-page [data-baseweb="input"] input:focus,
+        .thumb-page [data-baseweb="textarea"] textarea:focus,
+        .thumb-page .stTextInput input:focus,
+        .thumb-page .stTextArea textarea:focus {
+            border-color: rgba(230, 0, 18, 0.35) !important;
+            box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.14) !important;
+            outline: none !important;
+        }
+        /* Fallback (no .thumb-page wrapper in DOM): force light text areas/inputs */
+        .stTextArea textarea,
+        [data-baseweb="textarea"] textarea,
+        [data-baseweb="textarea"] > div,
+        .stTextInput input,
+        [data-baseweb="input"] input,
+        [data-baseweb="input"] > div,
+        .stSelectbox > div > div,
+        [data-baseweb="select"] > div {
+            background: linear-gradient(165deg, rgba(255, 255, 255, 1), rgba(240, 244, 250, 0.98)) !important;
+            color: #1d1d1f !important;
+            border: 1px solid rgba(0, 0, 0, 0.16) !important;
+            border-radius: 14px !important;
+            -webkit-text-fill-color: #1d1d1f !important;
+        }
+        .stTextArea textarea::placeholder,
+        .stTextInput input::placeholder,
+        [data-baseweb="textarea"] textarea::placeholder,
+        [data-baseweb="input"] input::placeholder {
+            color: #6e6e73 !important;
+            -webkit-text-fill-color: #6e6e73 !important;
+            opacity: 1 !important;
+        }
+        /* Thumbnails page help icon: remove dark dot artifact and show a clean bulb */
+        [data-testid="stWidgetLabel"] [data-testid*="stTooltipHoverTarget"] button,
+        [data-testid="stWidgetLabel"] [data-testid*="stTooltipIcon"],
+        [data-testid="stWidgetLabel"] [data-testid*="stHelpIcon"] {
+            width: 24px !important;
+            height: 24px !important;
+            min-width: 24px !important;
+            min-height: 24px !important;
+            border-radius: 999px !important;
+            background: linear-gradient(165deg, #fffaf0, #fff3d9) !important;
+            border: 1px solid rgba(230, 0, 18, 0.42) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+            color: transparent !important;
+            position: relative !important;
+            overflow: hidden !important;
+        }
+        [data-testid="stWidgetLabel"] [data-testid*="stTooltipHoverTarget"] button *,
+        [data-testid="stWidgetLabel"] [data-testid*="stTooltipIcon"] *,
+        [data-testid="stWidgetLabel"] [data-testid*="stHelpIcon"] * {
+            opacity: 0 !important;
+            color: transparent !important;
+            background: transparent !important;
+            border: 0 !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stWidgetLabel"] [data-testid*="stTooltipHoverTarget"] button::before,
+        [data-testid="stWidgetLabel"] [data-testid*="stTooltipIcon"]::before,
+        [data-testid="stWidgetLabel"] [data-testid*="stHelpIcon"]::before {
+            content: "💡";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -54%);
+            font-size: 13px;
+            line-height: 1;
+            opacity: 1 !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
-    df["engagement_rate"] = (
-        (df["likes"].fillna(0) + df["comments"].fillna(0)) / df["views"].clip(lower=1)
+
+
+def _catalog_map(provider: str) -> dict[str, dict]:
+    return {item["id"]: item for item in IMAGE_MODEL_CATALOG[provider]}
+
+
+def _format_model_option(provider: str, model_id: str) -> str:
+    item = _catalog_map(provider)[model_id]
+    return f"{item['label']}  •  {item['summary']}"
+
+
+def _estimate_image_cost(provider: str, model_id: str, count: int, size: str, quality: str) -> float:
+    item = _catalog_map(provider)[model_id]
+    if provider == "gemini":
+        return float(item["per_image"]) * count
+    return float(item["pricing"][quality][size]) * count
+
+
+def _clear_thumbnail_state() -> None:
+    cleanup_temp_dirs(st.session_state.get("thumbnails_temp_paths", []))
+    for key in THUMBNAILS_STATE_KEYS:
+        st.session_state.pop(key, None)
+    st.session_state["thumbnails_temp_paths"] = []
+
+
+def _register_thumbnail_artifact(artifact: PreparedThumbnailArtifact) -> None:
+    temp_dir = str(Path(artifact.file_path).parent)
+    paths = set(st.session_state.get("thumbnails_temp_paths", []))
+    paths.add(temp_dir)
+    st.session_state["thumbnails_temp_paths"] = sorted(paths)
+
+
+def _render_generate_tab() -> None:
+    section_header("Thumbnail Generation", icon="🖼️")
+
+    provider = st.selectbox(
+        "Provider",
+        ["gemini", "openai"],
+        index=0,
+        format_func=lambda value: PROVIDER_LABELS.get(value, value.title()),
     )
-    df["title_length"] = df["video_title"].fillna("").astype(str).str.len()
-    df["publish_day"] = df["video_publishedAt"].dt.day_name()
-    return df
-
-
-def _extract_keywords(titles: pd.Series, top_n: int = 8) -> list[str]:
-    words: list[str] = []
-    for title in titles.dropna().astype(str):
-        tokens = re.findall(r"[A-Za-z]{3,}", title.lower())
-        words.extend([tok for tok in tokens if tok not in STOPWORDS])
-    return [w for w, _ in Counter(words).most_common(top_n)]
-
-
-def _render_data_recommendations(df: pd.DataFrame, category_label: str) -> None:
-    section_header("Data-Driven Content Recommendations", icon="🎯")
-
-    if df.empty:
-        st.info(
-            f"No data available yet for `{category_label}`. Check that the CSV files exist."
-        )
-        return
-
-    channels = sorted(df["channel_title"].dropna().unique().tolist())
-    selected_channel = st.selectbox(
-        "Benchmark channel", ["All channels"] + channels, index=0
+    model_options = [item["id"] for item in IMAGE_MODEL_CATALOG[provider]]
+    model = st.selectbox(
+        "Model",
+        model_options,
+        format_func=lambda value: _format_model_option(provider, value),
     )
-    working = (
-        df if selected_channel == "All channels" else df[df["channel_title"] == selected_channel]
-    )
+    model_meta = _catalog_map(provider)[model]
 
-    if working.empty:
-        st.warning("No data available for selected channel.")
-        return
-
-    high_perf_threshold = working["views"].quantile(0.75)
-    high_perf = working[working["views"] >= high_perf_threshold].copy()
-    if high_perf.empty:
-        high_perf = working.nlargest(50, "views")
-
-    best_day = (
-        high_perf.groupby("publish_day")["views"]
-        .mean()
-        .sort_values(ascending=False)
-        .index[0]
-        if high_perf["publish_day"].notna().any()
-        else "N/A"
-    )
-    recommended_title_len = (
-        int(high_perf["title_length"].median())
-        if high_perf["title_length"].notna().any()
-        else 60
-    )
-    top_keywords = _extract_keywords(high_perf["video_title"], top_n=10)
-
-    kpi_row(
-        [
-            {
-                "label": "Best Publish Day",
-                "value": best_day,
-                "icon": "📅",
-            },
-            {
-                "label": "Target Title Length",
-                "value": f"~{recommended_title_len} chars",
-                "icon": "✏️",
-            },
-            {
-                "label": "High-Perf Sample",
-                "value": f"{len(high_perf):,} videos",
-                "icon": "🎬",
-            },
-        ]
-    )
-
-    if top_keywords:
-        st.markdown("**Suggested keyword angles**")
-        styled_keyword_chips(top_keywords)
-
-    top_refs = high_perf[
-        [
-            "channel_title",
-            "video_title",
-            "views",
-            "likes",
-            "comments",
-            "engagement_rate",
-            "video_publishedAt",
-            "thumb_medium_url",
-        ]
-        if "thumb_medium_url" in high_perf.columns
-        else [
-            "channel_title",
-            "video_title",
-            "views",
-            "likes",
-            "comments",
-            "engagement_rate",
-            "video_publishedAt",
-        ]
-    ].sort_values("views", ascending=False).head(12)
-
-    st.markdown("**Reference videos to model**")
-    image_cols = ["thumb_medium_url"] if "thumb_medium_url" in top_refs.columns else None
-    styled_dataframe(
-        top_refs,
-        title=None,
-        precision=1,
-        image_columns=image_cols,
-    )
-
-
-def render() -> None:
-    st.title("Recommendations & Thumbnail Generator")
-    st.write("Use analytics-backed recommendations, then generate thumbnail concepts.")
-
-    categories = _available_categories()
-    selected_category = st.selectbox("Dataset category", categories, index=0)
-
-    rec_df = _load_recommendation_data_for_label(selected_category)
-    _render_data_recommendations(rec_df, selected_category)
-    st.markdown("---")
-
-    st.markdown('<div class="yt-card">', unsafe_allow_html=True)
-    section_header("🎨 AI Thumbnail Studio")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        provider = st.selectbox("Provider", ["gemini", "openai"], index=0)
-    with col2:
-        if provider == "gemini":
-            model = st.text_input(
-                "Gemini image model",
-                value="gemini-2.0-flash-exp-image-generation",
-            )
-        else:
-            model = st.text_input("OpenAI image model", value="gpt-image-1")
-
-    api_key_default = get_api_key(provider) or ""
+    default_api_key = get_api_key(provider) or ""
     api_key = st.text_input(
-        "API key",
-        value=api_key_default,
+        "API Key",
+        value=default_api_key,
         type="password",
-        help="If blank, app reads from .env.",
+        help="Leave this as-is if your provider key is already configured in Streamlit secrets.",
     )
 
-    title = st.text_input(
-        "Video title", value="The Physics of Black Holes in 10 Minutes"
-    )
+    title = st.text_input("Video Title", value="The Physics of Black Holes in 10 Minutes")
     context = st.text_area(
-        "Context",
+        "Creative Context",
         value=(
-            "Audience: curious high-school and college students. "
-            "Goal: simplify Hawking radiation and event horizon visuals."
+            "Audience: curious students and lifelong learners. "
+            "Goal: make the main concept instantly legible, dramatic, and high-contrast."
         ),
         height=120,
     )
     style = st.text_area(
-        "Style",
-        value="Bold contrast, cinematic lighting, one main object, science aesthetic.",
+        "Style Direction",
+        value="Bold contrast, one clear subject, cinematic lighting, 16:9 composition, no clutter.",
         height=90,
     )
     negative_prompt = st.text_input(
         "Avoid",
-        value="clutter, tiny text, low contrast, too many subjects",
+        value="tiny text, low contrast, too many subjects, busy background",
     )
 
-    col3, col4 = st.columns(2)
-    with col3:
-        count = st.slider("Number of options", min_value=1, max_value=4, value=2)
-    with col4:
-        size = st.selectbox(
-            "Output size (OpenAI only)",
-            ["1024x1024", "1536x1024", "1024x1536"],
-            index=1,
+    config_cols = st.columns(4)
+    with config_cols[0]:
+        count = st.slider("Options", min_value=1, max_value=6, value=3)
+    with config_cols[1]:
+        size = st.selectbox("Image Size", model_meta["size_options"])
+    with config_cols[2]:
+        quality = st.selectbox("Image Quality", model_meta["quality_options"])
+    with config_cols[3]:
+        key_status = "Configured" if default_api_key else "Manual"
+        st.markdown(
+            f"""
+            <div class="thumb-metric">
+                <div class="thumb-metric-label">Provider Keys</div>
+                <div class="thumb-metric-value">{get_provider_key_count(provider)}</div>
+                <div style="font-size:12px;color:#B8C1DA;margin-top:0.25rem;">Default source: {key_status}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
 
-    run = st.button("Generate Thumbnails", type="primary", use_container_width=True)
-    if not run:
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
+    background = "opaque"
+    output_format = "png"
+    if provider == "openai":
+        advanced_cols = st.columns(2)
+        with advanced_cols[0]:
+            background = st.selectbox("Background", model_meta.get("background_options", ["opaque"]))
+        with advanced_cols[1]:
+            output_format = st.selectbox("Output Format", model_meta.get("format_options", ["png"]))
 
-    if not api_key:
-        st.error("Missing API key. Add it in the API key box or .env.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-    if not title.strip() or not context.strip():
-        st.error("Title and context are required.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
+    estimated_cost = _estimate_image_cost(provider, model, count, size, quality)
+    st.markdown(
+        f"""
+        <div class="thumb-card">
+            <div class="thumb-card-title">Estimated Spend</div>
+            <div class="thumb-card-copy">
+                This run is estimated at about <strong>${estimated_cost:.4f}</strong> for {count} generated concept(s) using {model_meta['label']}.
+                The thumbnail hub stays intentionally focused on image generation only.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    with st.spinner("Generating thumbnail concepts..."):
-        try:
-            generator = ThumbnailGenerator(
-                provider=provider, api_key=api_key, model=model
-            )
-            images = generator.generate(
-                title=title,
-                context=context,
-                style=style,
-                negative_prompt=negative_prompt,
-                count=count,
-                size=size,
-            )
-        except Exception as exc:
-            st.error(f"Generation failed: {exc}")
-            st.markdown("</div>", unsafe_allow_html=True)
+    if st.button("Generate Thumbnails", type="primary", use_container_width=True):
+        if not api_key:
+            st.error("Add a provider API key in the field above or via Streamlit secrets.")
+            return
+        if not title.strip() or not context.strip():
+            st.error("Video title and creative context are both required.")
             return
 
-    st.success(f"Generated {len(images)} image(s).")
-    out_dir = os.path.join("outputs", "thumbnails")
-    os.makedirs(out_dir, exist_ok=True)
+        with st.spinner("Generating thumbnail concepts..."):
+            try:
+                generator = ThumbnailGenerator(provider=provider, api_key=api_key, model=model)
+                images = generator.generate(
+                    title=title,
+                    context=context,
+                    style=style,
+                    negative_prompt=negative_prompt,
+                    count=count,
+                    size=size,
+                    quality=quality,
+                    output_format=output_format if provider == "openai" else None,
+                    background=background if provider == "openai" else None,
+                )
+            except Exception as exc:
+                st.error(f"Thumbnail generation failed: {exc}")
+                return
 
-    ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        output_dir = Path("outputs") / "thumbnails"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        gallery_cols = st.columns(min(len(images), 3) or 1)
+        for index, image in enumerate(images, start=1):
+            extension = "png" if "png" in image.mime_type else "jpg"
+            file_name = f"thumbnail_{timestamp}_{index}.{extension}"
+            (output_dir / file_name).write_bytes(image.image_bytes)
+            with gallery_cols[(index - 1) % len(gallery_cols)]:
+                st.markdown("<div class='thumb-gallery-card'>", unsafe_allow_html=True)
+                st.image(image.image_bytes, use_container_width=True)
+                st.download_button(
+                    "Download",
+                    data=image.image_bytes,
+                    file_name=file_name,
+                    mime=image.mime_type,
+                    use_container_width=True,
+                    key=f"thumb_generate_{timestamp}_{index}",
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="thumb-grid">', unsafe_allow_html=True)
-    for idx, generated in enumerate(images, start=1):
-        ext = "png" if "png" in generated.mime_type else "jpg"
-        filename = f"thumbnail_{ts}_{idx}.{ext}"
-        file_path = os.path.join(out_dir, filename)
-        with open(file_path, "wb") as fp:
-            fp.write(generated.image_bytes)
 
-        with st.container():
-            st.markdown('<div class="thumb-card">', unsafe_allow_html=True)
-            st.image(generated.image_bytes, use_container_width=True)
+def _render_download_tab() -> None:
+    section_header("Download Public Thumbnail", icon="🔎")
+
+    left, right = st.columns([1.1, 0.9], gap="large")
+    with left:
+        st.markdown(
+            """
+            <div class="thumb-card">
+                <div class="thumb-card-title">Preview A Video Thumbnail</div>
+                <div class="thumb-card-copy">
+                    Paste a public watch URL, Short URL, youtu.be URL, or direct video ID to inspect the available thumbnail variants
+                    and download the one you want.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.form("thumbnail_lookup_form", clear_on_submit=False):
+            lookup_value = st.text_input(
+                "YouTube Video URL Or ID",
+                key="thumbnails_lookup_value",
+                placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/...",
+            )
+            lookup_clicked = st.form_submit_button("Preview Thumbnail", type="primary", use_container_width=True)
+
+        if lookup_clicked:
+            try:
+                cleanup_temp_dirs(st.session_state.get("thumbnails_temp_paths", []))
+                st.session_state["thumbnails_temp_paths"] = []
+                preview = preview_thumbnail_target(lookup_value)
+            except Exception as exc:
+                st.session_state["thumbnails_error"] = str(exc)
+                st.session_state.pop("thumbnails_preview", None)
+                st.session_state.pop("thumbnails_download_artifact", None)
+            else:
+                st.session_state["thumbnails_preview"] = preview
+                st.session_state["thumbnails_download_artifact"] = None
+                st.session_state.pop("thumbnails_error", None)
+
+        if st.session_state.get("thumbnails_error"):
+            st.error(st.session_state["thumbnails_error"])
+
+    with right:
+        preview: ThumbnailPreview | None = st.session_state.get("thumbnails_preview")
+        if not preview:
+            st.markdown(
+                "<div class='thumb-empty'>Load a public video first to inspect the thumbnail and export one of the available variants.</div>",
+                unsafe_allow_html=True,
+            )
+        else:
             st.markdown(
                 f"""
-                <div class="thumb-card-footer">
-                    <span>Option {idx}</span>
+                <div class="thumb-card">
+                    <div class="thumb-card-title">{preview.title}</div>
+                    <div class="thumb-card-copy">
+                        Channel: {preview.channel or 'Unknown'}<br/>
+                        Video ID: {preview.video_id}<br/>
+                        Available Variants: {len(preview.thumbnail_variants)}
+                    </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-            st.download_button(
-                label="Download",
-                data=generated.image_bytes,
-                file_name=filename,
-                mime=generated.mime_type,
-                use_container_width=True,
-                key=f"download_{idx}_{ts}",
-            )
-            st.markdown("</div>", unsafe_allow_html=True)
+
+    preview = st.session_state.get("thumbnails_preview")
+    if not preview:
+        return
+
+    variant_options = list(preview.thumbnail_variants.keys())
+    selected_variant = st.selectbox(
+        "Thumbnail Variant",
+        variant_options,
+        index=variant_options.index(preview.default_variant) if preview.default_variant in variant_options else 0,
+        key="thumbnails_variant",
+    )
+
+    preview_url = preview.thumbnail_variants[selected_variant]
+    preview_cols = st.columns([1.15, 0.85], gap="large")
+    with preview_cols[0]:
+        st.image(preview_url, use_container_width=True)
+    with preview_cols[1]:
+        st.markdown(
+            """
+            <div class="thumb-card">
+                <div class="thumb-card-title">Variant Details</div>
+                <div class="thumb-card-copy">
+                    Use this flow when you want the exact public thumbnail from an existing YouTube video.
+                    It stays intentionally narrow: no transcript, audio, video, batch, or playlist tooling lives here anymore.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("Prepare Thumbnail Download", type="primary", use_container_width=True):
+            try:
+                artifact = prepare_thumbnail_download(preview.canonical_url, selected_variant)
+            except Exception as exc:
+                st.error(f"Thumbnail download failed: {exc}")
+            else:
+                _register_thumbnail_artifact(artifact)
+                st.session_state["thumbnails_download_artifact"] = artifact
+
+        artifact: PreparedThumbnailArtifact | None = st.session_state.get("thumbnails_download_artifact")
+        if artifact:
+            artifact_path = Path(artifact.file_path)
+            if artifact_path.exists():
+                st.download_button(
+                    "Download Thumbnail",
+                    data=artifact_path.read_bytes(),
+                    file_name=artifact.file_name,
+                    mime=artifact.mime_type,
+                    use_container_width=True,
+                    key=f"thumbnail_download_{artifact.file_name}",
+                )
+
+
+def render_thumbnail_workspace() -> None:
+    """Thumbnail generate + public thumbnail export (used by Download Hub)."""
+    _inject_page_css()
+    st.markdown('<div class="thumb-page">', unsafe_allow_html=True)
+
+    graph_insight_expander(
+        "Thumbnails",
+        """
+**Generate (AI)**  
+1. Choose **Provider** (Gemini or OpenAI) and **Model**.  
+2. Add an **API key** if one is not already in Streamlit secrets.  
+3. Fill **Video title**, **Creative context**, **Style**, and **Avoid** so the model matches your channel.  
+4. Set **Options** (count), **Size**, and **Quality**, then click **Generate Thumbnails**.  
+5. Use each **Download** button to save images to your computer.
+
+**Download from URL (public thumbnail)**  
+1. Paste a watch, Short, `youtu.be`, or **video ID** and click **Preview Thumbnail**.  
+2. Pick a **Thumbnail variant** in the list.  
+3. Click **Prepare Thumbnail Download**, then **Download Thumbnail**.
+
+Public thumbnails come from YouTube’s published assets only; AI generation uses your provider’s API and may incur cost.
+        """,
+        for_instructions=True,
+    )
+
+    tabs = st.tabs(["Generate", "Download From URL"])
+    with tabs[0]:
+        _render_generate_tab()
+    with tabs[1]:
+        _render_download_tab()
+
     st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render() -> None:
+    render_thumbnail_workspace()
+

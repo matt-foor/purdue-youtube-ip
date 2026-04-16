@@ -15,6 +15,7 @@ venv/
 .env
 .env.*
 !.env.example
+!.env.gcp.example
 .DS_Store
 Thumbs.db
 .ipynb_checkpoints/
@@ -22,12 +23,15 @@ Thumbs.db
 .idea/
 
 # Data and outputs
-data/raw/
-data/processed/
 outputs/figures/
 outputs/logs/
 outputs/models/
 outputs/reports/
+outputs/thumbnails/*
+!outputs/thumbnails/.gitkeep
+outputs/assistant/*.db
+outputs/channel_insights/*.db
 
 # Local configs
 config/*.local.yaml
+.streamlit/secrets.toml

@@ -1,16 +1,19 @@
 import os
+from datetime import date, datetime
 
 import pandas as pd
 import streamlit as st
 
 from dashboard.components.visualizations import (
+    chart_formula_insight_expanders,
+    format_compact_int,
     kpi_row,
     plotly_bar_chart,
     plotly_donut_chart,
-    plotly_heatmap,
     plotly_line_chart,
     plotly_scatter,
     section_header,
+    show_plotly_chart,
     styled_dataframe,
 )
 
@@ -23,6 +26,82 @@ CATEGORY_FILES = {
     "Entertainment": "entertainment_channels_videos.csv",
 }
 ALL_LABEL = "All Categories"
+
+_CHANNEL_SUMMARY_HELP = {
+    "channel_title": "Channel name from the filtered dataset.",
+    "videos": "Count of videos after category, channel, and date filters.",
+    "total_views": "Sum of public view counts for those videos.",
+    "avg_views": "Mean views per video (total_views ÷ videos).",
+    "typical_engagement_rate": "Median engagement_rate: (likes + comments) ÷ max(views, 1) per video.",
+}
+
+_TOP_VIDEOS_HELP = {
+    "channel_title": "Channel that published the video.",
+    "video_title": "Public video title.",
+    "views": "Total public views in the dataset row.",
+    "likes": "Like count at extract time.",
+    "comments": "Comment count at extract time.",
+    "engagement_rate": "(likes + comments) ÷ max(views, 1) — interaction per view.",
+    "video_publishedAt": "Publish timestamp from metadata.",
+}
+
+
+def _coerce_publish_date_range(
+    selection: object,
+    *,
+    data_min: date,
+    data_max: date,
+) -> tuple[date, date]:
+    """Normalize ``st.date_input`` range output to an inclusive (start, end) pair.
+
+    Range mode can return ``()``, ``(start,)``, ``(start, end)``, a bare ``date``, or a ``list``.
+    Empty selection falls back to the dataset span so charts match the widget default.
+    """
+    if selection is None:
+        return data_min, data_max
+    if isinstance(selection, datetime):
+        d = selection.date()
+        return d, d
+    if isinstance(selection, date):
+        return selection, selection
+    if isinstance(selection, (tuple, list)):
+        dates: list[date] = []
+        for item in selection:
+            if item is None:
+                continue
+            if isinstance(item, datetime):
+                dates.append(item.date())
+            elif isinstance(item, date):
+                dates.append(item)
+        if len(dates) >= 2:
+            a, b = dates[0], dates[1]
+            if a > b:
+                a, b = b, a
+            return a, b
+        if len(dates) == 1:
+            d0 = dates[0]
+            return d0, d0
+        return data_min, data_max
+    return data_min, data_max
+
+
+def _filter_rows_by_publish_calendar_range(
+    frame: pd.DataFrame, start: date, end: date
+) -> pd.DataFrame:
+    """Keep rows whose publish instant falls on a UTC calendar day in [*start*, *end*]."""
+    ts = frame["video_publishedAt"]
+    valid = ts.notna()
+    ts_ok = ts[valid]
+    if ts_ok.empty:
+        return frame.iloc[0:0]
+    if ts_ok.dt.tz is None:
+        ts_ok = ts_ok.dt.tz_localize("UTC")
+    else:
+        ts_ok = ts_ok.dt.tz_convert("UTC")
+    pub_day = ts_ok.dt.date
+    m = valid.copy()
+    m.loc[valid] = (pub_day >= start) & (pub_day <= end)
+    return frame.loc[m]
 
 
 def _dataset_path_for_label(label: str) -> str:
@@ -73,8 +152,30 @@ def _load_data_for_label(label: str) -> pd.DataFrame:
     return df
 
 
+def _render_engagement_formula_block() -> None:
+    st.markdown("#### How Engagement Rate is Calculated")
+    st.caption(
+        "Engagement Rate (%) = ((Likes + Comments) / Views) * 100. "
+        "If views are 0, we safely treat views as 1 to avoid divide-by-zero errors."
+    )
+
+    formula_matrix = pd.DataFrame(
+        [
+            {"Metric": "Likes", "Meaning": "Total likes on the video"},
+            {"Metric": "Comments", "Meaning": "Total comments on the video"},
+            {"Metric": "Views", "Meaning": "Total views on the video"},
+            {
+                "Metric": "Engagement Rate (%)",
+                "Meaning": "((Likes + Comments) / Views) * 100",
+            },
+        ]
+    )
+    with st.expander("Open formula matrix", expanded=False):
+        st.table(formula_matrix)
+
+
 def render() -> None:
-    section_header("Channel Analysis", icon="📊")
+    section_header("Category Analysis", icon="📊")
 
     categories = _available_categories()
     selected_category = st.selectbox("Dataset category", categories, index=0)
@@ -93,61 +194,92 @@ def render() -> None:
         "Filter channels", channels, default=channels[:8]
     )
 
-    min_date = df["video_publishedAt"].min().date()
-    max_date = df["video_publishedAt"].max().date()
+    ts_min = df["video_publishedAt"].min()
+    ts_max = df["video_publishedAt"].max()
+    min_date = ts_min.date() if pd.notna(ts_min) else date.today()
+    max_date = ts_max.date() if pd.notna(ts_max) else date.today()
+    # Do not set max_value to the latest video date: choosing any window past that (e.g. next month)
+    # would fail Streamlit validation and snap the widget back to the full range, so charts ignore the
+    # user's range. min_value stays the dataset floor; upper bound defaults to last default +10y in Streamlit.
     date_range = st.date_input(
         "Published date range",
         value=(min_date, max_date),
         min_value=min_date,
-        max_value=max_date,
+        max_value=None,
+        key=f"channel_analysis_pub_range:{selected_category}",
+        help="UTC publish date of each video. Narrow ranges with no uploads in this dataset will empty the charts until you widen the window.",
+    )
+    st.caption(
+        "Filter uses each video's **UTC** calendar day. Switching dataset category resets this range to that file's span."
     )
 
     filtered = df.copy()
     if selected_channels:
         filtered = filtered[filtered["channel_title"].isin(selected_channels)]
 
-    if isinstance(date_range, tuple) and len(date_range) == 2:
-        start_date, end_date = date_range
-        filtered = filtered[
-            (filtered["video_publishedAt"].dt.date >= start_date)
-            & (filtered["video_publishedAt"].dt.date <= end_date)
-        ]
+    start_date, end_date = _coerce_publish_date_range(
+        date_range, data_min=min_date, data_max=max_date
+    )
+    filtered = _filter_rows_by_publish_calendar_range(filtered, start_date, end_date)
 
     if filtered.empty:
         st.warning("No data after filters. Broaden your channel/date filters.")
         return
 
-    # KPI row
+    n_videos = len(filtered)
+    n_channels = int(filtered["channel_id"].nunique())
+    total_views = int(filtered["views"].fillna(0).sum())
+    avg_views = int(round(float(filtered["views"].fillna(0).mean())))
+    med_eng_pct = float(filtered["engagement_rate"].median()) * 100
+
+    v_c, v_full = format_compact_int(n_videos)
+    ch_c, ch_full = format_compact_int(n_channels)
+    tv_c, tv_full = format_compact_int(total_views)
+    av_c, av_full = format_compact_int(avg_views)
+
+    # KPI row (compact K/M/B/T; hover shows exact counts — avoid near-white value color on light cards)
     metrics = [
         {
             "label": "Videos",
-            "value": f"{len(filtered):,}",
+            "value": v_c,
+            "value_tooltip": f"{v_full} videos in this filtered set",
             "icon": "🎬",
             "color": "#FF0000",
         },
         {
             "label": "Channels",
-            "value": f"{filtered['channel_id'].nunique():,}",
+            "value": ch_c,
+            "value_tooltip": f"{ch_full} unique channels (after category, channel, and date filters)",
             "icon": "📺",
-            "color": "#00D4FF",
+            "color": "#065FD4",
         },
         {
             "label": "Total Views",
-            "value": f"{int(filtered['views'].fillna(0).sum()):,}",
+            "value": tv_c,
+            "value_tooltip": f"{tv_full} total views summed across all videos above",
             "icon": "👁️",
+            "color": "#FF0000",
         },
         {
             "label": "Avg Views / Video",
-            "value": f"{int(filtered['views'].fillna(0).mean()):,}",
+            "value": av_c,
+            "value_tooltip": f"{av_full} mean views per video in this slice",
             "icon": "📈",
+            "color": "#1d1d1f",
         },
         {
-            "label": "Median Engagement",
-            "value": f"{filtered['engagement_rate'].median() * 100:.2f} %",
+            "label": "Typical Engagement Rate",
+            "value": f"{med_eng_pct:.2f}%",
+            "value_tooltip": (
+                f"Median engagement {med_eng_pct:.4f}% — (likes + comments) ÷ views × 100 per video; "
+                "half of videos fall below this rate and half above."
+            ),
             "icon": "💡",
+            "color": "#1d1d1f",
         },
     ]
     kpi_row(metrics)
+    st.caption("Hover any large metric to see the **exact** number in a tooltip.")
 
     left, right = st.columns(2)
 
@@ -159,7 +291,7 @@ def render() -> None:
                 videos=("video_id", "count"),
                 total_views=("views", "sum"),
                 avg_views=("views", "mean"),
-                engagement=("engagement_rate", "median"),
+                typical_engagement_rate=("engagement_rate", "median"),
             )
             .sort_values("total_views", ascending=False)
             .head(15)
@@ -168,8 +300,28 @@ def render() -> None:
         fig = plotly_bar_chart(
             channel_summary, x="channel_title", y="total_views", title="Top 15 Channels"
         )
-        st.plotly_chart(fig, use_container_width=True)
-        styled_dataframe(channel_summary, title="Channel Summary")
+        show_plotly_chart(fig)
+        chart_formula_insight_expanders(
+            "Top channels chart",
+            formula_lines=[
+                "Rows = one row per **channel_title** after filters.",
+                "**total_views** = sum of **views** for all videos from that channel in the window.",
+                "Chart shows the **top 15** channels by total_views (descending).",
+            ],
+            insights=[
+                "Tall bars = more cumulative reach in this filter window, not necessarily “better” per upload.",
+                "Pair with **Channel Summary** to see upload counts and typical engagement so mega-hits do not mask thin catalogs.",
+            ],
+        )
+        styled_dataframe(
+            channel_summary,
+            title="Channel Summary",
+            column_help=_CHANNEL_SUMMARY_HELP,
+            table_insights=[
+                "Sort mentally by **videos** vs **total_views** — a channel with few uploads can still rank high on views.",
+                "**typical_engagement_rate** is a median, so it resists one viral outlier.",
+            ],
+        )
 
     with right:
         section_header("Monthly Upload Trend", icon="📆")
@@ -186,7 +338,21 @@ def render() -> None:
             title="Videos & Views Over Time",
             secondary_y=["views"],
         )
-        st.plotly_chart(fig, use_container_width=True)
+        show_plotly_chart(fig)
+        chart_formula_insight_expanders(
+            "Uploads & views over time",
+            formula_lines=[
+                "Group videos by **publish_month** (month of video_publishedAt).",
+                "**videos** = count of video_id in that month.",
+                "**views** = sum of views for those videos (catalog total in data, not lifetime YouTube Studio).",
+                "Dual axis: left = videos, right = views.",
+            ],
+            insights=[
+                "Uploads up but views flat can mean packaging or topic fatigue.",
+                "Uploads down but views steady can mean older videos still earn impressions.",
+                "Use the chart toolbar to zoom dense periods.",
+            ],
+        )
 
     section_header("Best Performing Videos", icon="⭐")
     top_videos = filtered[
@@ -204,7 +370,13 @@ def render() -> None:
         top_videos.head(50),
         title="Top Videos by Views",
         precision=2,
+        column_help=_TOP_VIDEOS_HELP,
+        table_insights=[
+            "Sorted by **views** descending — the list is snapshot data, not live YouTube.",
+            "Compare **engagement_rate** across similar view tiers to spot packaging winners.",
+        ],
     )
+    _render_engagement_formula_block()
 
     section_header("Publishing Day Performance", icon="🗓️")
     day_perf = (
@@ -212,7 +384,7 @@ def render() -> None:
         .agg(
             videos=("video_id", "count"),
             avg_views=("views", "mean"),
-            median_engagement=("engagement_rate", "median"),
+            typical_engagement_rate=("engagement_rate", "median"),
         )
         .reindex(
             [
@@ -237,15 +409,39 @@ def render() -> None:
             y="avg_views",
             title="Average Views by Day",
         )
-        st.plotly_chart(fig_views, use_container_width=True)
+        show_plotly_chart(fig_views)
+        chart_formula_insight_expanders(
+            "Average views by weekday",
+            formula_lines=[
+                "Group by **publish_day** (weekday name).",
+                "**avg_views** = mean of **views** for videos published on that weekday.",
+                "Reindexed to Mon–Sun so missing days may be omitted.",
+            ],
+            insights=[
+                "Sparse weekdays make averages noisy — treat as a scheduling hypothesis.",
+                "Pair with engagement-by-day so high average views are not from tiny samples.",
+            ],
+        )
     with col_day2:
         fig_eng = plotly_bar_chart(
             day_perf,
             x="publish_day",
-            y="median_engagement",
-            title="Median Engagement Rate by Day",
+            y="typical_engagement_rate",
+            title="Typical Engagement Rate by Day",
         )
-        st.plotly_chart(fig_eng, use_container_width=True)
+        show_plotly_chart(fig_eng)
+        chart_formula_insight_expanders(
+            "Engagement by weekday",
+            formula_lines=[
+                "Group by **publish_day**.",
+                "**typical_engagement_rate** = median of **engagement_rate** = (likes + comments) ÷ max(views, 1).",
+                "Median resists outliers; not the same as watch time or CTR.",
+            ],
+            insights=[
+                "Taller bar = higher typical interaction per view on that weekday.",
+                "Read together with average views — few uploads can skew both metrics.",
+            ],
+        )
 
     section_header("Views vs Engagement", icon="📉")
     scatter_df = filtered.copy()
@@ -255,9 +451,24 @@ def render() -> None:
         y="engagement_rate",
         size=None,
         color="channel_title",
-        title="Views vs Engagement Rate",
+        title="Views vs Engagement Rate (Log Scale)",
     )
-    st.plotly_chart(fig_scatter, use_container_width=True)
+    fig_scatter.update_traces(marker={"size": 9, "opacity": 0.65})
+    fig_scatter.update_xaxes(type="log", title="Views (log scale)")
+    fig_scatter.update_yaxes(title="Engagement Rate")
+    show_plotly_chart(fig_scatter)
+    chart_formula_insight_expanders(
+        "Views vs engagement scatter",
+        formula_lines=[
+            "Each point = one video after filters.",
+            "X = **views** on a **log** scale; Y = **engagement_rate** = (likes + comments) ÷ max(views, 1).",
+            "Color = **channel_title**.",
+        ],
+        insights=[
+            "Upper-left often means strong engagement on modest reach; lower-right can mean huge reach with lighter interaction per view.",
+            "Engagement is likes + comments only — not Studio watch time or impressions.",
+        ],
+    )
 
     section_header("Engagement Distribution", icon="🥧")
     bins = []
@@ -281,4 +492,15 @@ def render() -> None:
             values="count",
             title="Engagement Rate Buckets",
         )
-        st.plotly_chart(fig_donut, use_container_width=True)
+        show_plotly_chart(fig_donut)
+        chart_formula_insight_expanders(
+            "Engagement distribution (donut)",
+            formula_lines=[
+                "Bucket **engagement_rate** per video: Low < 2%, Medium 2–8%, High > 8% (after ×100 to percent).",
+                "Donut counts **videos** in each bucket, not share of views.",
+            ],
+            insights=[
+                "A thin High slice can still include some of your biggest view-getters.",
+                "If Low dominates, packaging may earn clicks without interaction payoff.",
+            ],
+        )

@@ -1,75 +1,81 @@
 import streamlit as st
-from streamlit_option_menu import option_menu
 
 
-def render_sidebar() -> str:
-    """Render the branded sidebar navigation and return the selected page."""
-    with st.sidebar:
-        st.markdown(
-            """
-            <div style="display:flex;align-items:center;gap:0.55rem;margin-bottom:0.35rem;">
-                <div style="width:28px;height:20px;border-radius:6px;background:linear-gradient(135deg,#FF0000,#CC0000);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 14px rgba(0,0,0,0.65);">
-                    <span style="font-size:14px;font-weight:800;color:#FFFFFF;">▶</span>
+PAGE_OPTIONS = [
+    "Control Centre",
+    "Category Analysis",
+    "Channel Insights",
+    "Download Hub",
+    "Outlier Finder",
+    "Ytuber",
+    "Deployment",
+]
+
+_LEGACY_PAGE_MAP = {
+    "Channel Analysis": "Category Analysis",
+    "Recommendations": "Download Hub",
+    "Thumbnails": "Download Hub",
+    "Tools": "Download Hub",
+}
+
+
+def _normalize_page_name(value: str) -> str:
+    page_name = _LEGACY_PAGE_MAP.get(str(value or "").strip(), str(value or "").strip())
+    if page_name not in PAGE_OPTIONS:
+        return PAGE_OPTIONS[0]
+    return page_name
+
+
+def render_sidebar_header() -> None:
+    """Premium YCreator mark + nav label (matches intro styling)."""
+    st.markdown(
+        """
+        <div class="sidebar-brand-mast">
+            <div class="sidebar-brand-emblem" aria-hidden="true">
+                <div class="sidebar-brand-emblem-head">
+                    <div class="sidebar-brand-emblem-eye"></div>
+                    <div class="sidebar-brand-emblem-eye"></div>
                 </div>
-                <div>
-                    <div style="font-weight:700;font-size:14px;letter-spacing:0.08em;text-transform:uppercase;color:#FFFFFF;">Creator Insights</div>
-                    <div style="font-size:11px;color:#B0B0B0;">Purdue × Google</div>
+                <div class="sidebar-brand-emblem-smile"></div>
+            </div>
+            <div class="sidebar-brand-row">
+                <div class="sidebar-brand-bar-col">
+                    <div class="sidebar-brand-bar"></div>
+                </div>
+                <div class="sidebar-brand-copy">
+                    <div class="sidebar-brand-yt">
+                        <span class="sidebar-brand-yt-gradient">YCreator</span>
+                    </div>
+                    <div class="sidebar-brand-ci">YouTube Insights</div>
+                    <div class="sidebar-brand-line" aria-hidden="true"></div>
+                    <div class="sidebar-brand-sub">Purdue × Google</div>
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        st.markdown("<div style='margin:0.15rem 0 0.5rem;font-size:11px;color:#B0B0B0;'>Navigate</div>", unsafe_allow_html=True)
+    st.markdown(
+        '<div class="sidebar-nav-label">Navigate</div>',
+        unsafe_allow_html=True,
+    )
 
-        selected = option_menu(
-            menu_title=None,
-            options=["Channel Analysis", "Recommendations", "Ytuber", "Deploy Notes"],
-            icons=["bar-chart-fill", "bullseye", "rocket-takeoff-fill", "gear"],
-            default_index=0,
-            styles={
-                "container": {
-                    "padding": "0.2rem 0 0.5rem",
-                    "background": "transparent",
-                },
-                "icon": {
-                    "color": "#FF4D4D",
-                    "font-size": "16px",
-                },
-                "nav-link": {
-                    "font-size": "13px",
-                    "padding": "0.35rem 0.8rem",
-                    "border-radius": "10px",
-                    "color": "#B0B0B0",
-                    "margin": "0.08rem 0",
-                },
-                "nav-link-selected": {
-                    "background": "linear-gradient(90deg,rgba(255,0,0,0.9),rgba(0,212,255,0.6))",
-                    "color": "#FFFFFF",
-                    "box-shadow": "0 8px 20px rgba(0,0,0,0.75)",
-                },
-            },
-        )
 
-        st.markdown("<hr style='border-color:rgba(255,255,255,0.10);margin:0.4rem 0 0.6rem;' />", unsafe_allow_html=True)
+def render_sidebar_footer() -> None:
+    """Attribution below the navigation menu."""
+    st.markdown(
+        "<hr style='border-color:rgba(0,0,0,0.1);margin:0.55rem 0 0.65rem;' />",
+        unsafe_allow_html=True,
+    )
 
-        st.markdown(
-            """
-            <div style="font-size:11px;color:#B0B0B0;margin-bottom:0.4rem;">
-                Set <code>YOUTUBE_API_KEY</code>, <code>GEMINI_API_KEY</code>, and <code>OPENAI_API_KEY</code> in <code>.env</code> for full functionality.
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.markdown(
-            """
-            <div style="font-size:10px;color:#747494;margin-top:0.6rem;line-height:1.4;">
-                <strong>Purdue University × Google</strong><br/>
-                Daniels School of Business — MS BAIM Capstone
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    return selected
+    st.markdown(
+        """
+        <div style="font-size:10px;color:#86868b;margin-top:0.6rem;line-height:1.45;">
+            <strong style="color:#1d1d1f;">Purdue University × Google</strong><br/>
+            Daniels School of Business — MS BAIM Capstone<br/>
+            <span style="opacity:0.9;">YCreator</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
