@@ -21,6 +21,7 @@ except (ImportError, ModuleNotFoundError, OSError):
 
 from dashboard.components.visualizations import (
     chart_formula_insight_expanders,
+    format_compact_int,
     kpi_row,
     plotly_bar_chart,
     plotly_heatmap,
@@ -727,7 +728,7 @@ def _render_pool_footer(provider_counts: Dict[str, int], workspace_meta: Optiona
             [
                 ("Data Source", workspace_meta.get("source_label", "Unavailable"), "How this channel was loaded"),
                 ("Channel ID", workspace_meta.get("channel_id", "Unavailable"), "Reference identifier"),
-                ("Videos In View", f"{workspace_meta.get('video_count', 0):,}", "Posts included in the workspace"),
+                ("Videos In View", format_compact_int(workspace_meta.get("video_count", 0))[0], "Posts included in the workspace"),
             ]
         )
 
@@ -1656,14 +1657,19 @@ def _render_overview(channel_df: pd.DataFrame) -> None:
     total_comments = int(channel_df["comments"].fillna(0).sum())
     avg_views = int(channel_df["views"].fillna(0).mean())
     med_eng = channel_df["engagement_rate"].median() * 100
+    videos_c, _ = format_compact_int(total_videos)
+    views_c, _ = format_compact_int(total_views)
+    likes_c, _ = format_compact_int(total_likes)
+    comments_c, _ = format_compact_int(total_comments)
+    avg_views_c, _ = format_compact_int(avg_views)
 
     kpi_row(
         [
-            {"label": "Videos (1Y)", "value": f"{total_videos:,}", "icon": "🎬"},
-            {"label": "Total Views", "value": f"{total_views:,}", "icon": "👁️"},
-            {"label": "Total Likes", "value": f"{total_likes:,}", "icon": "❤️"},
-            {"label": "Total Comments", "value": f"{total_comments:,}", "icon": "💬"},
-            {"label": "Avg Views / Video", "value": f"{avg_views:,}", "icon": "📊"},
+            {"label": "Videos (1Y)", "value": videos_c, "icon": "🎬"},
+            {"label": "Total Views", "value": views_c, "icon": "👁️"},
+            {"label": "Total Likes", "value": likes_c, "icon": "❤️"},
+            {"label": "Total Comments", "value": comments_c, "icon": "💬"},
+            {"label": "Avg Views / Video", "value": avg_views_c, "icon": "📊"},
             {"label": "Median Engagement", "value": f"{med_eng:.2f} %", "icon": "💡"},
         ]
     )
@@ -1965,7 +1971,7 @@ def _timeframe_to_window(
 def _format_int_label(value: Optional[float]) -> str:
     if value is None or pd.isna(value):
         return "N/A"
-    return f"{int(round(float(value))):,}"
+    return format_compact_int(float(value))[0]
 
 
 def _format_subscriber_label(
@@ -2299,9 +2305,9 @@ def _render_outliers_finder(current_channel_title: str) -> None:
 
     kpi_row(
         [
-            {"label": "Videos Scanned", "value": f"{result.scanned_videos:,}", "icon": "🎬"},
-            {"label": "Channels Scanned", "value": f"{result.scanned_channels:,}", "icon": "📺"},
-            {"label": "Channel Baselines", "value": f"{result.baseline_channels:,}", "icon": "📉"},
+            {"label": "Videos Scanned", "value": format_compact_int(result.scanned_videos)[0], "icon": "🎬"},
+            {"label": "Channels Scanned", "value": format_compact_int(result.scanned_channels)[0], "icon": "📺"},
+            {"label": "Channel Baselines", "value": format_compact_int(result.baseline_channels)[0], "icon": "📉"},
             {"label": "Cache Policy", "value": result.cache_policy, "icon": "🧠"},
             {"label": "Quota Mode", "value": result.quota_profile, "icon": "⚡"},
         ]
@@ -3218,13 +3224,15 @@ def _render_ai_studio(
     )
 
     estimate_col1, estimate_col2 = st.columns(2)
+    input_tokens_c, _ = format_compact_int(input_tokens)
+    output_tokens_c, _ = format_compact_int(output_tokens)
     with estimate_col1:
         st.markdown(
             f"""
             <div class="yt-card" style="padding:0.85rem 1rem;margin-bottom:0.75rem;">
                 <div style="font-size:11px;color:#7D8AB1;letter-spacing:0.08em;text-transform:uppercase;">Estimated text spend</div>
                 <div style="font-size:26px;font-weight:700;color:#CC0000;">${estimated_text_cost:.4f}</div>
-                <div style="font-size:12px;color:#5F6368;margin-top:0.2rem;">~{input_tokens:,} input tokens and ~{output_tokens:,} output tokens for this task mix.</div>
+                <div style="font-size:12px;color:#5F6368;margin-top:0.2rem;">~{input_tokens_c} input tokens and ~{output_tokens_c} output tokens for this task mix.</div>
             </div>
             """,
             unsafe_allow_html=True,

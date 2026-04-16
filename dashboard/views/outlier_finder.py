@@ -12,6 +12,7 @@ import streamlit as st
 from dashboard.components.visualizations import (
     apply_dashboard_chart_theme,
     chart_formula_insight_expanders,
+    format_compact_int,
     graph_insight_expander,
     show_plotly_chart,
     styled_dataframe,
@@ -918,7 +919,7 @@ def _parse_exclude_keywords(text: str) -> Tuple[str, ...]:
 def _format_int(value: Optional[float]) -> str:
     if value is None or pd.isna(value):
         return "N/A"
-    return f"{int(round(float(value))):,}"
+    return format_compact_int(float(value))[0]
 
 
 def _format_pct(value: float) -> str:
@@ -1056,7 +1057,7 @@ def _build_filter_tags(result) -> List[Tuple[str, str]]:
     if result.request.duration_preference != "Any":
         tags.append(("Duration", result.request.duration_preference))
     if result.request.min_views > 0:
-        tags.append(("Minimum Views", f"{result.request.min_views:,}+"))
+        tags.append(("Minimum Views", f"{format_compact_int(result.request.min_views)[0]}+"))
     if result.request.match_mode == "exact":
         tags.append(("Match", "Exact Phrase"))
     if len(tags) > 5:
@@ -1068,7 +1069,7 @@ def _build_filter_tags(result) -> List[Tuple[str, str]]:
 
 def _build_state_tags(result, result_frame: pd.DataFrame) -> List[Tuple[str, str]]:
     return [
-        ("Results", f"{len(result_frame):,}"),
+        ("Results", format_compact_int(len(result_frame))[0]),
         ("Cache", result.cache_policy),
         ("Quota", result.quota_profile),
     ]
@@ -1182,7 +1183,7 @@ def _breakout_scatter(result_frame: pd.DataFrame):
         hovertemplate=(
             "<b>%{hovertext}</b><br>"
             "Channel: %{customdata[0]}<br>"
-            "Views: %{customdata[1]:,}<br>"
+            "Views: %{customdata[1]:~s}<br>"
             "Outlier Score: %{customdata[2]:.1f}<br>"
             "Age (Days): %{customdata[3]:.1f}<br>"
             "Language Confidence: %{customdata[4]}<extra></extra>"
@@ -1600,7 +1601,7 @@ def render() -> None:
                 [0, 1_000, 5_000, 10_000, 50_000, 100_000],
                 index=0,
                 key="outlier_page_min_views",
-                format_func=lambda value: "No Minimum" if value == 0 else f"{value:,}+",
+                format_func=lambda value: "No Minimum" if value == 0 else f"{format_compact_int(value)[0]}+",
             )
 
         channel_cols = st.columns([1.85, 1], gap="medium")
@@ -1755,7 +1756,9 @@ def render() -> None:
     with sort_cols[0]:
         _render_section_intro(
             "Top Outliers In This Scan",
-            f"{len(result_frame):,} results surfaced from {result.scanned_videos:,} scanned uploads across {result.scanned_channels:,} channels.",
+            f"{format_compact_int(len(result_frame))[0]} results surfaced from "
+            f"{format_compact_int(result.scanned_videos)[0]} scanned uploads across "
+            f"{format_compact_int(result.scanned_channels)[0]} channels.",
         )
     with sort_cols[1]:
         sort_label = st.selectbox(
@@ -1821,7 +1824,11 @@ def render() -> None:
     summary_cards = [
         ("Median Outlier Score", f"{summary_stats.get('median_outlier_score', 0):.1f}", "The middle-performing winner in this scan."),
         ("Median Views / Day", _format_int(summary_stats.get("median_views_per_day")), "Typical breakout velocity across surfaced videos."),
-        ("Scanned Videos / Channels", f"{result.scanned_videos:,} / {result.scanned_channels:,}", "Coverage of the scanned cohort after filters."),
+        (
+            "Scanned Videos / Channels",
+            f"{format_compact_int(result.scanned_videos)[0]} / {format_compact_int(result.scanned_channels)[0]}",
+            "Coverage of the scanned cohort after filters.",
+        ),
         ("High-Confidence Language Match", f"{summary_stats.get('high_language_share', 0):.1f}%", "Share of results with a high-confidence language match."),
     ]
     for idx, (label, value, detail) in enumerate(summary_cards):
