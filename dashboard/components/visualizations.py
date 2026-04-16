@@ -617,6 +617,7 @@ def plotly_heatmap(
     y: str,
     z: str,
     title: str,
+    colorscale: Optional[Sequence[Sequence[Union[float, str]]]] = None,
 ) -> go.Figure:
     """Create a heatmap from tall-form data with x, y, z columns."""
     pivot = df.pivot(index=y, columns=x, values=z)
@@ -625,7 +626,7 @@ def plotly_heatmap(
             z=pivot.values,
             x=pivot.columns,
             y=pivot.index,
-            colorscale="Viridis",
+            colorscale=colorscale or "Viridis",
             colorbar=dict(
                 title=_friendly_label(z),
                 tickfont=dict(color="#424245"),
