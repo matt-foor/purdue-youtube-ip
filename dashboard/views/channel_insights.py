@@ -608,12 +608,7 @@ def _render_ai_card(title: str, body: str, *, empty_message: str = "") -> None:
         html_body = f"<div class='ci-card-copy'>{escape(empty_message)}</div>"
 
     st.markdown(
-        f"""
-        <div class="ci-card">
-            <div class="ci-card-title">{escape(title)}</div>
-            {html_body}
-        </div>
-        """,
+        f'<div class="ci-card"><div class="ci-card-title">{escape(title)}</div>{html_body}</div>',
         unsafe_allow_html=True,
     )
 
@@ -707,17 +702,20 @@ def _render_summary_kpi_cards(summary: Dict[str, Any], deltas: Dict[str, Any]) -
                 delta_class += " ci-kpi-delta-positive"
             elif str(delta_text).startswith("-"):
                 delta_class += " ci-kpi-delta-negative"
+        # No leading indentation on HTML lines — Streamlit Markdown treats 4+ leading spaces as a code block,
+        # which would show raw <div> tags instead of rendering KPI cards.
         html_cards.append(
-            f"""
-            <div class="ci-kpi-card">
-                <div class="ci-kpi-label">{escape(str(card['label']))}</div>
-                <div class="ci-kpi-value">{escape(str(card['value']))}</div>
-                <div class="{delta_class}">{escape(str(delta_text or ''))}</div>
-            </div>
-            """
+            f'<div class="ci-kpi-card">'
+            f'<div class="ci-kpi-label">{escape(str(card["label"]))}</div>'
+            f'<div class="ci-kpi-value">{escape(str(card["value"]))}</div>'
+            f'<div class="{delta_class}">{escape(str(delta_text or ""))}</div>'
+            f"</div>"
         )
 
-    st.markdown(f"<div class='ci-kpi-grid'>{''.join(html_cards)}</div>", unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="ci-kpi-grid">{"".join(html_cards)}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def _queue_outlier_finder_theme(theme: str, channel_title: str) -> None:
@@ -754,14 +752,12 @@ def _render_connect_card(connected_channels: list[dict[str, Any]]) -> None:
     config_cols = st.columns([1.45, 1], gap="large")
     with config_cols[0]:
         st.markdown(
-            """
-            <div class="ci-card">
-                <div class="ci-card-title">Connect A Public Channel</div>
-                <div class="ci-card-copy">
-                    Add any public channel by URL, handle, or channel ID. This workflow is intentionally public-only and stores manual snapshots each time you refresh.
-                </div>
-            </div>
-            """,
+            '<div class="ci-card">'
+            '<div class="ci-card-title">Connect A Public Channel</div>'
+            '<div class="ci-card-copy">'
+            "Add any public channel by URL, handle, or channel ID. This workflow is intentionally public-only "
+            "and stores manual snapshots each time you refresh."
+            "</div></div>",
             unsafe_allow_html=True,
         )
         with st.form("channel_insights_connect_form"):
@@ -817,42 +813,30 @@ def _render_connect_card(connected_channels: list[dict[str, Any]]) -> None:
             st.markdown("<div class='ci-empty'>No tracked channels yet. Add one on the left to unlock persisted snapshots and theme history.</div>", unsafe_allow_html=True)
 
         st.markdown(
-            f"""
-            <div class="ci-card" style="margin-top:0.85rem;">
-                <div class="ci-card-title">Current Workspace</div>
-                <div class="ci-summary-grid">
-                    <div class="ci-summary-item">
-                        <div class="ci-summary-label">Tracked Channels</div>
-                        <div class="ci-summary-value">{len(connected_channels)}</div>
-                    </div>
-                    <div class="ci-summary-item">
-                        <div class="ci-summary-label">Refresh Mode</div>
-                        <div class="ci-summary-value">Manual Snapshots</div>
-                    </div>
-                    <div class="ci-summary-item">
-                        <div class="ci-summary-label">Analytics Scope</div>
-                        <div class="ci-summary-value">Public Only</div>
-                    </div>
-                    <div class="ci-summary-item">
-                        <div class="ci-summary-label">Topic Default</div>
-                        <div class="ci-summary-value">Heuristic</div>
-                    </div>
-                </div>
-                <div class="ci-note" style="margin-top:0.85rem;">Channel Insights stays public-only in this lighter V5 build. It still supports snapshot history, topic trends, outliers, and next-topic recommendations.</div>
-            </div>
-            """,
+            f'<div class="ci-card" style="margin-top:0.85rem;">'
+            '<div class="ci-card-title">Current Workspace</div>'
+            '<div class="ci-summary-grid">'
+            f'<div class="ci-summary-item"><div class="ci-summary-label">Tracked Channels</div>'
+            f'<div class="ci-summary-value">{len(connected_channels)}</div></div>'
+            '<div class="ci-summary-item"><div class="ci-summary-label">Refresh Mode</div>'
+            '<div class="ci-summary-value">Manual Snapshots</div></div>'
+            '<div class="ci-summary-item"><div class="ci-summary-label">Analytics Scope</div>'
+            '<div class="ci-summary-value">Public Only</div></div>'
+            '<div class="ci-summary-item"><div class="ci-summary-label">Topic Default</div>'
+            '<div class="ci-summary-value">Heuristic</div></div>'
+            "</div>"
+            '<div class="ci-note" style="margin-top:0.85rem;">'
+            "Channel Insights stays public-only in this lighter V5 build. It still supports snapshot history, "
+            "topic trends, outliers, and next-topic recommendations.</div></div>",
             unsafe_allow_html=True,
         )
 
         st.markdown(
-            """
-            <div class="ci-card" style="margin-top:0.85rem;">
-                <div class="ci-card-title">Experimental Topic Model</div>
-                <div class="ci-card-copy">
-                    Keep the default heuristic topic flow for the safest path, or switch to the optional BERTopic beta when artifact settings are configured.
-                </div>
-            </div>
-            """,
+            '<div class="ci-card" style="margin-top:0.85rem;">'
+            '<div class="ci-card-title">Experimental Topic Model</div>'
+            '<div class="ci-card-copy">'
+            "Keep the default heuristic topic flow for the safest path, or switch to the optional BERTopic beta "
+            "when artifact settings are configured.</div></div>",
             unsafe_allow_html=True,
         )
         st.selectbox(
@@ -883,16 +867,11 @@ def _render_summary_action_row(payload: Dict[str, Any]) -> None:
     action_cols = st.columns([2.2, 1.1, 1], gap="large")
     with action_cols[0]:
         st.markdown(
-            f"""
-            <div class="ci-card">
-                <div class="ci-source-pill">{escape(payload['source'].replace('_', ' ').title())}</div>
-                <div class="ci-card-title" style="margin-top:0.65rem;">{escape(channel['channel_title'])}</div>
-                <div class="ci-card-copy">
-                    Latest Snapshot: {escape(payload['snapshot_at'])}<br/>
-                    Topic Mode Used: {escape(_topic_mode_label(topic_mode_used))}
-                </div>
-            </div>
-            """,
+            f'<div class="ci-card">'
+            f'<div class="ci-source-pill">{escape(payload["source"].replace("_", " ").title())}</div>'
+            f'<div class="ci-card-title" style="margin-top:0.65rem;">{escape(channel["channel_title"])}</div>'
+            f'<div class="ci-card-copy">Latest Snapshot: {escape(payload["snapshot_at"])}<br/>'
+            f"Topic Mode Used: {escape(_topic_mode_label(topic_mode_used))}</div></div>",
             unsafe_allow_html=True,
         )
     with action_cols[1]:
@@ -914,30 +893,20 @@ def _render_summary_action_row(payload: Dict[str, Any]) -> None:
         st.link_button("Open Channel", channel["canonical_url"], use_container_width=True)
 
     st.markdown(
-        f"""
-        <div class="ci-card" style="margin-top:0.75rem;">
-            <div class="ci-card-title">Experimental Topic Model</div>
-            <div class="ci-summary-grid">
-                <div class="ci-summary-item">
-                    <div class="ci-summary-label">Requested Mode</div>
-                    <div class="ci-summary-value">{escape(_topic_mode_label(topic_mode_requested))}</div>
-                </div>
-                <div class="ci-summary-item">
-                    <div class="ci-summary-label">Applied Mode</div>
-                    <div class="ci-summary-value">{escape(_topic_mode_label(topic_mode_used))}</div>
-                </div>
-                <div class="ci-summary-item">
-                    <div class="ci-summary-label">Artifact Status</div>
-                    <div class="ci-summary-value">{escape(_artifact_status_label(getattr(artifact_status, 'state', 'disabled')))}</div>
-                </div>
-                <div class="ci-summary-item">
-                    <div class="ci-summary-label">Bundle Version</div>
-                    <div class="ci-summary-value">{escape(str(summary.get('topic_model_bundle_version', '') or 'Not Loaded'))}</div>
-                </div>
-            </div>
-            <div class="ci-note" style="margin-top:0.85rem;">{escape(topic_model_message or 'The heuristic topic flow remains the fallback when BERTopic is unavailable.')}</div>
-        </div>
-        """,
+        f'<div class="ci-card" style="margin-top:0.75rem;">'
+        '<div class="ci-card-title">Experimental Topic Model</div>'
+        '<div class="ci-summary-grid">'
+        f'<div class="ci-summary-item"><div class="ci-summary-label">Requested Mode</div>'
+        f'<div class="ci-summary-value">{escape(_topic_mode_label(topic_mode_requested))}</div></div>'
+        f'<div class="ci-summary-item"><div class="ci-summary-label">Applied Mode</div>'
+        f'<div class="ci-summary-value">{escape(_topic_mode_label(topic_mode_used))}</div></div>'
+        f'<div class="ci-summary-item"><div class="ci-summary-label">Artifact Status</div>'
+        f'<div class="ci-summary-value">{escape(_artifact_status_label(getattr(artifact_status, "state", "disabled")))}</div></div>'
+        f'<div class="ci-summary-item"><div class="ci-summary-label">Bundle Version</div>'
+        f'<div class="ci-summary-value">{escape(str(summary.get("topic_model_bundle_version", "") or "Not Loaded"))}</div></div>'
+        "</div>"
+        f'<div class="ci-note" style="margin-top:0.85rem;">'
+        f"{escape(topic_model_message or 'The heuristic topic flow remains the fallback when BERTopic is unavailable.')}</div></div>",
         unsafe_allow_html=True,
     )
     if topic_mode_requested == TOPIC_MODE_BERTOPIC_OPTIONAL and topic_mode_used != TOPIC_MODE_BERTOPIC_OPTIONAL:
@@ -957,38 +926,23 @@ def _render_overview_tab(payload: Dict[str, Any]) -> None:
     overview_cols = st.columns([1.15, 1], gap="large")
     with overview_cols[0]:
         st.markdown(
-            f"""
-            <div class="ci-card">
-                <div class="ci-card-title">What The Channel Is Signaling Right Now</div>
-                <div class="ci-card-copy">{escape(recommendations.get('summary', 'Refresh the channel to generate grounded summary signals.'))}</div>
-                <div class="ci-summary-grid">
-                    <div class="ci-summary-item">
-                        <div class="ci-summary-label">Best Duration Bucket</div>
-                        <div class="ci-summary-value">{escape(summary.get('best_duration_bucket', 'N/A'))}</div>
-                    </div>
-                    <div class="ci-summary-item">
-                        <div class="ci-summary-label">Best Title Pattern</div>
-                        <div class="ci-summary-value">{escape(summary.get('best_title_pattern', 'N/A'))}</div>
-                    </div>
-                    <div class="ci-summary-item">
-                        <div class="ci-summary-label">Shorts Share</div>
-                        <div class="ci-summary-value">{_format_pct(summary.get('shorts_ratio', 0))}</div>
-                    </div>
-                    <div class="ci-summary-item">
-                        <div class="ci-summary-label">Median Engagement</div>
-                        <div class="ci-summary-value">{_format_pct(summary.get('median_engagement', 0))}</div>
-                    </div>
-                    <div class="ci-summary-item">
-                        <div class="ci-summary-label">Analytics Scope</div>
-                        <div class="ci-summary-value">Public Only</div>
-                    </div>
-                    <div class="ci-summary-item">
-                        <div class="ci-summary-label">Topic Source</div>
-                        <div class="ci-summary-value">{escape(_topic_mode_label(summary.get('topic_mode_used', TOPIC_MODE_HEURISTIC)))}</div>
-                    </div>
-                </div>
-            </div>
-            """,
+            f'<div class="ci-card">'
+            '<div class="ci-card-title">What The Channel Is Signaling Right Now</div>'
+            f"<div class=\"ci-card-copy\">{escape(recommendations.get('summary', 'Refresh the channel to generate grounded summary signals.'))}</div>"
+            '<div class="ci-summary-grid">'
+            f'<div class="ci-summary-item"><div class="ci-summary-label">Best Duration Bucket</div>'
+            f'<div class="ci-summary-value">{escape(summary.get("best_duration_bucket", "N/A"))}</div></div>'
+            f'<div class="ci-summary-item"><div class="ci-summary-label">Best Title Pattern</div>'
+            f'<div class="ci-summary-value">{escape(summary.get("best_title_pattern", "N/A"))}</div></div>'
+            f'<div class="ci-summary-item"><div class="ci-summary-label">Shorts Share</div>'
+            f'<div class="ci-summary-value">{_format_pct(summary.get("shorts_ratio", 0))}</div></div>'
+            f'<div class="ci-summary-item"><div class="ci-summary-label">Median Engagement</div>'
+            f'<div class="ci-summary-value">{_format_pct(summary.get("median_engagement", 0))}</div></div>'
+            '<div class="ci-summary-item"><div class="ci-summary-label">Analytics Scope</div>'
+            '<div class="ci-summary-value">Public Only</div></div>'
+            f'<div class="ci-summary-item"><div class="ci-summary-label">Topic Source</div>'
+            f'<div class="ci-summary-value">{escape(_topic_mode_label(summary.get("topic_mode_used", TOPIC_MODE_HEURISTIC)))}</div></div>'
+            "</div></div>",
             unsafe_allow_html=True,
         )
 
@@ -998,12 +952,7 @@ def _render_overview_tab(payload: Dict[str, Any]) -> None:
         elif fallback_actions:
             action_markup = "<ul class='ci-list'>" + "".join(f"<li>{escape(action)}</li>" for action in fallback_actions) + "</ul>"
             st.markdown(
-                f"""
-                <div class="ci-card">
-                    <div class="ci-card-title">Recommended Next Actions</div>
-                    {action_markup}
-                </div>
-                """,
+                f'<div class="ci-card"><div class="ci-card-title">Recommended Next Actions</div>{action_markup}</div>',
                 unsafe_allow_html=True,
             )
         else:
@@ -1154,13 +1103,11 @@ def _render_theme_cards(title: str, rows: Iterable[Dict[str, Any]], channel_titl
 
     for item in items:
         st.markdown(
-            f"""
-            <div class="ci-theme-card">
-                <div class="ci-theme-title">{escape(str(item.get('theme', 'Theme')))}</div>
-                <div class="ci-theme-copy">{escape(str(item.get('rationale', '')))}</div>
-                <div class="ci-theme-copy" style="margin-top:0.35rem;color:#F7F8FC;">{escape(str(item.get('action', '')))}</div>
-            </div>
-            """,
+            f'<div class="ci-theme-card">'
+            f'<div class="ci-theme-title">{escape(str(item.get("theme", "Theme")))}</div>'
+            f'<div class="ci-theme-copy">{escape(str(item.get("rationale", "")))}</div>'
+            f'<div class="ci-theme-copy" style="margin-top:0.35rem;color:#6e6e73;">{escape(str(item.get("action", "")))}</div>'
+            f"</div>",
             unsafe_allow_html=True,
         )
         theme = str(item.get("theme", "")).strip()
@@ -1185,12 +1132,10 @@ def _render_next_topics_tab(payload: Dict[str, Any]) -> None:
     if ideas:
         for item in ideas:
             st.markdown(
-                f"""
-                <div class="ci-theme-card">
-                    <div class="ci-theme-title">{escape(str(item.get('title', 'Idea')))}</div>
-                    <div class="ci-theme-copy">{escape(str(item.get('why_now', '')))}</div>
-                </div>
-                """,
+                f'<div class="ci-theme-card">'
+                f'<div class="ci-theme-title">{escape(str(item.get("title", "Idea")))}</div>'
+                f'<div class="ci-theme-copy">{escape(str(item.get("why_now", "")))}</div>'
+                f"</div>",
                 unsafe_allow_html=True,
             )
     else:
