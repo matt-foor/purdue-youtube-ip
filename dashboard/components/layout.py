@@ -10,6 +10,12 @@ import streamlit as st
 
 # Badge (ALL CAPS), headline, description, optional feature tags (glass pills)
 PAGE_HERO: Dict[str, Tuple[str, str, str, Tuple[str, ...]]] = {
+    "Control Centre": (
+        "CONTROL CENTRE",
+        "YCreator",
+        "Your premium command centre for YouTube creator work—benchmark a category, study public channel performance, surface breakout videos, and turn signals into publish-ready decisions in one glass workspace.",
+        ("Category benchmarks", "Channel intelligence", "Outlier & media toolkit"),
+    ),
     "Category Analysis": (
         "CATEGORY ANALYSIS",
         "Benchmark each category dataset to see which channels and videos are outperforming in that niche.",
@@ -54,7 +60,7 @@ PAGE_HERO: Dict[str, Tuple[str, str, str, Tuple[str, ...]]] = {
 }
 
 
-def render_page_hero(page: str) -> None:
+def render_page_hero(page: str, *, hero_class: str = "") -> None:
     """Top-of-page glass hero: eyebrow → badge → headline → description → optional tags."""
     row = PAGE_HERO.get(page)
     if not row:
@@ -72,9 +78,10 @@ def render_page_hero(page: str) -> None:
             parts.append(f'<span class="{cls}">{escape(t)}</span>')
         tags_html = f'<div class="feature-hero-tags">{"".join(parts)}</div>'
 
+    hero_extra = f" {hero_class.strip()}" if hero_class.strip() else ""
     st.markdown(
         f"""
-<div class="glass-page-hero fade-in">
+<div class="glass-page-hero fade-in{hero_extra}">
   <p class="product-eyebrow">YouTube Creator Insights <span class="product-eyebrow-sep">·</span> Purdue × Google</p>
   <div class="feature-badge">
     <span class="feature-badge-dot" aria-hidden="true"></span>

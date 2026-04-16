@@ -519,6 +519,44 @@ section[data-testid="stMain"] > div {
     text-wrap: balance;
 }
 
+/* Control Centre landing: flagship YCreator wordmark (same hero shell, larger glass-type treatment) */
+.glass-page-hero.control-centre-hero .feature-headline {
+    margin: 0 0 0.75rem;
+    font-size: clamp(2.85rem, 8.5vw, 5rem);
+    font-weight: 900;
+    letter-spacing: -0.05em;
+    line-height: 1.02;
+    color: transparent;
+    background: linear-gradient(
+        118deg,
+        #ff1a3d 0%,
+        #e60012 18%,
+        #8b0010 38%,
+        #0a2540 62%,
+        #0071e3 88%,
+        #38bdf8 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    text-shadow: none;
+    filter:
+        drop-shadow(0 1px 0 rgba(255, 255, 255, 0.55))
+        drop-shadow(0 6px 22px rgba(230, 0, 18, 0.22))
+        drop-shadow(0 14px 40px rgba(0, 113, 227, 0.14));
+}
+
+.glass-page-hero.control-centre-hero .feature-description {
+    max-width: 720px;
+    font-size: 1.08rem;
+    font-weight: 500;
+    color: #3a3f4a;
+    line-height: 1.58;
+}
+
+div[data-testid="stMarkdownContainer"] .glass-page-hero.control-centre-hero .feature-headline {
+    text-align: center !important;
+}
+
 .feature-description {
     margin: 0 auto;
     max-width: 640px;
@@ -568,6 +606,9 @@ div[data-testid="stMarkdownContainer"] .glass-page-hero p {
     }
     .product-eyebrow {
         font-size: 1.25rem;
+    }
+    .glass-page-hero.control-centre-hero .feature-headline {
+        font-size: clamp(2.35rem, 10vw, 3.25rem);
     }
 }
 

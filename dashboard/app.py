@@ -14,9 +14,9 @@ from dashboard.components.theme import inject_shared_theme
 from dashboard.views import channel_analysis, channel_insights, control_centre, download_hub, outlier_finder, ytuber
 
 
-def _render_app_shell(page: str) -> None:
+def _render_app_shell(page: str, *, hero_class: str = "") -> None:
     """Glass feature hero: badge, headline, description, tags."""
-    render_page_hero(page)
+    render_page_hero(page, hero_class=hero_class)
 
 
 def _cleanup_retired_session_state() -> None:
@@ -99,6 +99,7 @@ def _page_deployment() -> None:
 
 
 def _page_control_centre() -> None:
+    _render_app_shell("Control Centre", hero_class="control-centre-hero")
     nav_targets = [
         (
             "Category Analysis",
