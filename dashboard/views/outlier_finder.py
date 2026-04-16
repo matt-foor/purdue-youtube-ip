@@ -172,12 +172,13 @@ def _inject_outlier_css() -> None:
             margin-bottom: 0.85rem;
         }
         .outlier-subtitle {
-            max-width: 760px;
+            max-width: 640px;
             margin: 0 auto;
             font-size: 16px;
             line-height: 1.65;
             color: #B0B0B0;
             text-align: center;
+            text-wrap: balance;
         }
         .outlier-trust-row {
             display: flex;

@@ -115,9 +115,10 @@ def _inject_page_css() -> None:
             color:#B8C1DA;
             font-size:16px;
             line-height:1.62;
-            max-width:760px;
+            max-width:640px;
             margin:0 auto;
             text-align:center;
+            text-wrap:balance;
         }
         .thumb-card {
             border-radius:24px;

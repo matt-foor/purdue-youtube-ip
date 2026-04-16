@@ -183,10 +183,11 @@ def _inject_channel_insights_css() -> None:
             color: #B0B0B0;
             font-size: 16px;
             line-height: 1.62;
-            max-width: 760px;
+            max-width: 640px;
             margin: 0 auto;
             font-weight: 500;
             text-align: center;
+            text-wrap: balance;
         }
         .ci-card {
             border-radius: 24px;

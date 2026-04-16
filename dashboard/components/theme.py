@@ -516,16 +516,18 @@ section[data-testid="stMain"] > div {
     color: #14161b;
     text-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
     text-align: center;
+    text-wrap: balance;
 }
 
 .feature-description {
     margin: 0 auto;
-    max-width: 720px;
+    max-width: 640px;
     font-size: 1.05rem;
     line-height: 1.55;
     color: var(--apple-gray);
     font-weight: 400;
     text-align: center;
+    text-wrap: balance;
 }
 
 /* Streamlit markdown wrapper can reset paragraph alignment — keep glass hero symmetric */

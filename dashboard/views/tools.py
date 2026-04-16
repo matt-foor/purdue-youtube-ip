@@ -125,9 +125,10 @@ def _inject_tools_css() -> None:
             color: #B8C1DA;
             font-size: 16px;
             line-height: 1.65;
-            max-width: 760px;
+            max-width: 640px;
             margin: 0 auto;
             text-align: center;
+            text-wrap: balance;
         }
         .tools-pill-row {
             display: flex;

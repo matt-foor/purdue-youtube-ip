@@ -321,10 +321,11 @@ def _inject_ytuber_css() -> None:
         .ytuber-subtitle {
             font-size: 15px;
             color: #B0B0B0;
-            max-width: 680px;
+            max-width: 640px;
             margin: 0 auto;
             font-weight: 500;
             text-align: center;
+            text-wrap: balance;
         }
         .ytuber-search-meta {
             margin-top: 0.9rem;
