@@ -647,10 +647,12 @@ def _inject_outlier_css() -> None:
             letter-spacing: 0.01em !important;
         }
         [data-testid="stForm"] .stFormSubmitButton button[kind="primary"] {
-            background: linear-gradient(180deg, #ff2b2b, #e60012) !important;
-            color: #ffffff !important;
-            border: 1px solid rgba(0, 0, 0, 0.16) !important;
-            box-shadow: 0 8px 20px rgba(230, 0, 18, 0.3) !important;
+            background: linear-gradient(165deg, rgba(246, 251, 255, 0.97), rgba(224, 237, 252, 0.95)) !important;
+            color: #0b4f9e !important;
+            border: 1px solid rgba(0, 113, 227, 0.34) !important;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.98),
+                0 8px 22px rgba(0, 113, 227, 0.18) !important;
         }
         [data-testid="stForm"] .stFormSubmitButton button:not([kind="primary"]) {
             background: linear-gradient(165deg, rgba(255, 255, 255, 1), rgba(236, 240, 248, 0.96)) !important;
@@ -661,7 +663,7 @@ def _inject_outlier_css() -> None:
                 0 6px 16px rgba(0, 0, 0, 0.12) !important;
         }
         [data-testid="stForm"] .stFormSubmitButton button:not([kind="primary"]):hover {
-            border-color: rgba(230, 0, 18, 0.45) !important;
+            border-color: rgba(0, 113, 227, 0.42) !important;
             box-shadow:
                 inset 0 1px 0 rgba(255, 255, 255, 1),
                 0 0 0 2px rgba(0, 113, 227, 0.12),
