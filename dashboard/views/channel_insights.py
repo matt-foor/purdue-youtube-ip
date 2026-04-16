@@ -560,7 +560,7 @@ def _channel_insights_analysis_spinner() -> Iterator[None]:
 def _format_int(value: Any) -> str:
     if value is None or value == "":
         return "0"
-    return f"{int(round(float(value))):,}"
+    return format_compact_int(float(value))[0]
 
 
 def _format_pct(value: Any) -> str:

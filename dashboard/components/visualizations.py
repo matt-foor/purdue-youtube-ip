@@ -344,6 +344,23 @@ def format_compact_int(n: Union[int, float]) -> Tuple[str, str]:
     return compact, full
 
 
+def format_compact_number(value: Union[int, float], precision: int = 1) -> str:
+    """Human-friendly number formatting for tables/KPIs.
+
+    - >= 1,000 uses K / M / B / T
+    - smaller values preserve integer/decimal readability
+    """
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return ""
+    n = float(value)
+    if abs(n) >= 1000:
+        compact, _ = format_compact_int(n)
+        return compact
+    if float(n).is_integer():
+        return f"{int(n)}"
+    return f"{n:.{precision}f}".rstrip("0").rstrip(".")
+
+
 def styled_metric_card(
     label: str,
     value: str,
@@ -771,8 +788,12 @@ def styled_dataframe(
         st.markdown(f"**{title}**", unsafe_allow_html=True)
 
     numeric_cols = df.select_dtypes(include=[np.number]).columns
+    numeric_formatters = {
+        col: (lambda v, p=precision: format_compact_number(v, precision=p))
+        for col in numeric_cols
+    }
     styler = (
-        df.style.format(precision=precision)
+        df.style.format(numeric_formatters, na_rep="")
         .set_table_styles(
             [
                 {
@@ -817,8 +838,11 @@ def styled_dataframe(
         )
     except Exception:
         # Styled DataFrames use Arrow; a broken/missing pyarrow install (common on Windows) still shows data.
+        fallback_df = df.copy()
+        for col in numeric_cols:
+            fallback_df[col] = fallback_df[col].map(lambda v, p=precision: format_compact_number(v, precision=p))
         st.dataframe(
-            df,
+            fallback_df,
             use_container_width=True,
             hide_index=True,
             column_config=column_config or None,
@@ -854,11 +878,8 @@ def _build_dataframe_column_config(
         if pd.api.types.is_bool_dtype(df[col]):
             cfg[col] = st.column_config.TextColumn(friendly, help=help_text)
         elif pd.api.types.is_numeric_dtype(df[col]):
-            cfg[col] = st.column_config.NumberColumn(
-                friendly,
-                help=help_text,
-                format=f"%.{precision}f",
-            )
+            # Keep compact table formatting (K/M/B) visible when header tooltips are enabled.
+            cfg[col] = st.column_config.TextColumn(friendly, help=help_text)
         elif pd.api.types.is_datetime64_any_dtype(df[col]):
             cfg[col] = st.column_config.DatetimeColumn(friendly, help=help_text)
         else:
