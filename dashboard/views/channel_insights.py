@@ -457,6 +457,35 @@ def _inject_channel_insights_css() -> None:
             background: linear-gradient(180deg, rgba(235, 246, 255, 1), rgba(215, 235, 255, 0.92)) !important;
             border-color: rgba(0, 113, 227, 0.42) !important;
         }
+        /* Ensure Run analysis (form submit) uses blue glass in all Streamlit variants */
+        [data-testid="stForm"] .stFormSubmitButton button,
+        [data-testid="stForm"] .stFormSubmitButton button[kind="primary"],
+        [data-testid="stForm"] .stFormSubmitButton button[data-testid="baseButton-primary"],
+        [data-testid="stForm"] .stFormSubmitButton button[data-testid="stBaseButton-primary"] {
+            font-weight: 700 !important;
+            background: linear-gradient(
+                165deg,
+                rgba(246, 251, 255, 0.98) 0%,
+                rgba(224, 240, 255, 0.92) 45%,
+                rgba(201, 229, 255, 0.88) 100%
+            ) !important;
+            color: #0a2540 !important;
+            border: 1px solid rgba(0, 113, 227, 0.34) !important;
+            box-shadow: 0 4px 20px rgba(0, 113, 227, 0.14), 0 1px 0 rgba(255, 255, 255, 0.75) inset !important;
+        }
+        [data-testid="stForm"] .stFormSubmitButton button:hover,
+        [data-testid="stForm"] .stFormSubmitButton button[kind="primary"]:hover,
+        [data-testid="stForm"] .stFormSubmitButton button[data-testid="baseButton-primary"]:hover,
+        [data-testid="stForm"] .stFormSubmitButton button[data-testid="stBaseButton-primary"]:hover {
+            background: linear-gradient(
+                165deg,
+                rgba(238, 248, 255, 1) 0%,
+                rgba(212, 235, 255, 0.95) 50%,
+                rgba(187, 221, 255, 0.92) 100%
+            ) !important;
+            border-color: rgba(0, 113, 227, 0.52) !important;
+            color: #061a2e !important;
+        }
         /* Keep UI readable while Streamlit marks outputs stale (avoids full-page grey “glitch”) */
         [data-testid="stAppViewContainer"] [data-stale="true"] {
             opacity: 1 !important;
