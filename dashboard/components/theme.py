@@ -697,31 +697,58 @@ div[data-testid="stMarkdownContainer"] .glass-page-hero p {
     min-height: var(--app-control-height) !important;
     border-radius: 999px !important;
     font-family: var(--app-font-display) !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
     font-size: 14px !important;
+    letter-spacing: 0.01em !important;
+    transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease !important;
 }
 
 button[kind="primary"],
 .stButton > button[kind="primary"] {
-    background: linear-gradient(180deg, #ff1a1a, var(--yt-red)) !important;
-    color: #fff !important;
-    border: 1px solid rgba(0, 0, 0, 0.12) !important;
-    box-shadow: 0 6px 20px rgba(230, 0, 18, 0.35) !important;
+    background: linear-gradient(165deg, rgba(246, 251, 255, 0.97), rgba(224, 237, 252, 0.95)) !important;
+    color: #0b4f9e !important;
+    border: 1px solid rgba(0, 113, 227, 0.34) !important;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.98),
+        0 8px 22px rgba(0, 113, 227, 0.18) !important;
 }
 
 .stButton > button:not([kind="primary"]),
 button[kind="secondary"],
 .stDownloadButton > button {
-    background: rgba(255, 255, 255, 0.98) !important;
-    color: var(--apple-black) !important;
-    border: 1px solid rgba(0, 0, 0, 0.14) !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.95)) !important;
+    color: #154f93 !important;
+    border: 1px solid rgba(0, 113, 227, 0.24) !important;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.98),
+        0 4px 14px rgba(15, 23, 42, 0.08) !important;
 }
 
 .stButton > button:not([kind="primary"]):hover,
 button[kind="secondary"]:hover {
-    border-color: rgba(0, 0, 0, 0.22) !important;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1) !important;
+    border-color: rgba(0, 113, 227, 0.38) !important;
+    transform: translateY(-1px) !important;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 1),
+        0 0 0 2px rgba(0, 113, 227, 0.12),
+        0 8px 20px rgba(0, 113, 227, 0.14) !important;
+}
+
+button[kind="primary"]:hover,
+.stButton > button[kind="primary"]:hover {
+    border-color: rgba(0, 113, 227, 0.46) !important;
+    transform: translateY(-1px) !important;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 1),
+        0 0 0 2px rgba(0, 113, 227, 0.14),
+        0 10px 24px rgba(0, 113, 227, 0.2) !important;
+}
+
+.stButton > button:focus-visible,
+.stFormSubmitButton > button:focus-visible,
+.stDownloadButton > button:focus-visible {
+    outline: 2px solid rgba(0, 113, 227, 0.45) !important;
+    outline-offset: 2px !important;
 }
 
 .stTextInput > div > div > input,
