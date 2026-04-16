@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 from dashboard.components.visualizations import (
@@ -112,6 +113,13 @@ OUTLIER_WARM_CONTINUOUS = [
     [0.82, "#00A6FF"],
     [1.0, "#1D4ED8"],
 ]
+OUTLIER_SCORE_BAND_COLORS = {
+    "Breakout": "#E60012",
+    "Strong": "#FF7A59",
+    "Promising": "#FFB020",
+    "Early Signal": "#2D8CFF",
+}
+OUTLIER_SCORE_BAND_ORDER = ["Breakout", "Strong", "Promising", "Early Signal"]
 
 
 def _inject_outlier_css() -> None:
@@ -1192,72 +1200,138 @@ def _render_chart_shell(title: str, copy: str) -> None:
 
 def _breakout_scatter(result_frame: pd.DataFrame):
     chart_df = result_frame.copy()
-    chart_df["subscribers_log10"] = chart_df["channel_subscriber_count"].fillna(0).apply(
-        lambda value: math.log10(float(value) + 1)
+    chart_df["subscriber_plot_value"] = chart_df["channel_subscriber_count"].fillna(1).clip(lower=1).astype(float)
+    chart_df["subscriber_label"] = chart_df.apply(
+        lambda row: "Hidden"
+        if bool(row.get("hidden_subscriber_count"))
+        else _format_subscribers(row.get("channel_subscriber_count"), False),
+        axis=1,
     )
-    fig = px.scatter(
-        chart_df,
-        x="subscribers_log10",
-        y="views_per_day",
-        size="outlier_score",
-        color="age_bucket",
-        hover_name="video_title",
-        color_discrete_sequence=OUTLIER_WARM_DISCRETE,
-        hover_data={
-            "channel_title": True,
-            "views": ":,",
-            "outlier_score": ":.1f",
-            "age_days": ":.1f",
-            "language_confidence_label": True,
-            "subscribers_log10": False,
-        },
+    chart_df["score_band"] = chart_df["outlier_score"].apply(score_band_for_value)
+    chart_df["bubble_size"] = 16 + 24 * chart_df["views_per_day"].rank(pct=True).fillna(0.5)
+
+    fig = go.Figure()
+    for band in OUTLIER_SCORE_BAND_ORDER:
+        band_df = chart_df[chart_df["score_band"] == band].copy()
+        if band_df.empty:
+            continue
+        fig.add_trace(
+            go.Scatter(
+                x=band_df["subscriber_plot_value"],
+                y=band_df["views_per_day"],
+                mode="markers",
+                name=band,
+                marker=dict(
+                    size=band_df["bubble_size"],
+                    color=OUTLIER_SCORE_BAND_COLORS[band],
+                    opacity=0.78,
+                    line=dict(color="rgba(255,255,255,0.95)", width=1.2),
+                ),
+                customdata=band_df[
+                    [
+                        "video_title",
+                        "channel_title",
+                        "views",
+                        "outlier_score",
+                        "age_days",
+                        "age_bucket",
+                        "subscriber_label",
+                    ]
+                ].to_numpy(),
+                hovertemplate=(
+                    "<b>%{customdata[0]}</b><br>"
+                    "Channel: %{customdata[1]}<br>"
+                    "Tier: " + band + "<br>"
+                    "Views / Day: %{y:,.0f}<br>"
+                    "Total Views: %{customdata[2]:,.0f}<br>"
+                    "Outlier Score: %{customdata[3]:.1f}<br>"
+                    "Age Bucket: %{customdata[5]}<br>"
+                    "Age (Days): %{customdata[4]:.1f}<br>"
+                    "Subscribers: %{customdata[6]}<extra></extra>"
+                ),
+            )
+        )
+
+    median_subs = float(chart_df["subscriber_plot_value"].median()) if not chart_df.empty else 1.0
+    median_vpd = float(chart_df["views_per_day"].median()) if not chart_df.empty else 0.0
+    fig.add_vline(
+        x=median_subs,
+        line_width=1,
+        line_dash="dot",
+        line_color="rgba(29, 29, 31, 0.35)",
+        annotation_text="Median channel size",
+        annotation_position="top left",
+    )
+    fig.add_hline(
+        y=median_vpd,
+        line_width=1,
+        line_dash="dot",
+        line_color="rgba(29, 29, 31, 0.35)",
+        annotation_text="Median velocity",
+        annotation_position="top left",
+    )
+    fig.update_layout(
         title="Breakout Map",
-        labels={
-            "subscribers_log10": "Channel Size (log scale)",
-            "views_per_day": "Views Per Day",
-            "age_bucket": "How old the video is",
-        },
+        xaxis_title="Channel Subscribers (log scale)",
+        yaxis_title="Views Per Day",
+        xaxis_type="log",
     )
-    fig.update_traces(
-        marker=dict(line=dict(width=1, color="rgba(255,255,255,0.18)"), sizemin=11),
-        hovertemplate=(
-            "<b>%{hovertext}</b><br>"
-            "Channel: %{customdata[0]}<br>"
-            "Views: %{customdata[1]:~s}<br>"
-            "Outlier Score: %{customdata[2]:.1f}<br>"
-            "Age (Days): %{customdata[3]:.1f}<br>"
-            "Language Confidence: %{customdata[4]}<extra></extra>"
-        ),
-    )
-    return _style_chart(fig, legend_title="Publish Age Bucket")
+    fig.update_xaxes(tickformat="~s")
+    return _style_chart(fig, legend_title="Outlier Strength")
 
 
 def _age_bucket_chart(result_frame: pd.DataFrame):
     summary = build_age_bucket_summary(result_frame)
-    fig = px.bar(
-        summary,
-        x="age_bucket",
-        y="median_outlier_score",
-        color="median_views_per_day",
-        text="outlier_count",
-        title="Outlier Score By Publish Age",
-        labels={
-            "age_bucket": "How old the video is",
-            "median_outlier_score": "Median Outlier Score",
-            "median_views_per_day": "Median Views Per Day",
-        },
-        color_continuous_scale=OUTLIER_WARM_CONTINUOUS,
-    )
-    fig.update_traces(
-        textposition="outside",
-        textfont=dict(size=12, color="#1d1d1f"),
-        cliponaxis=False,
-        hovertemplate=(
-            "<b>%{x}</b><br>"
-            "Median Outlier Score: %{y:.1f}<br>"
-            "Median Views Per Day: %{marker.color:.0f}<br>"
-            "Video Count: %{text}<extra></extra>"
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            x=summary["age_bucket"],
+            y=summary["outlier_count"],
+            name="Videos In Scan",
+            marker=dict(color="rgba(230, 0, 18, 0.68)", line=dict(color="#E60012", width=1)),
+            text=summary["outlier_count"].astype(int),
+            textposition="outside",
+            customdata=summary[["median_outlier_score", "median_views_per_day"]].to_numpy(),
+            hovertemplate=(
+                "<b>%{x}</b><br>"
+                "Videos In Scan: %{y}<br>"
+                "Median Outlier Score: %{customdata[0]:.1f}<br>"
+                "Median Views / Day: %{customdata[1]:,.0f}<extra></extra>"
+            ),
         )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=summary["age_bucket"],
+            y=summary["median_outlier_score"],
+            name="Median Outlier Score",
+            mode="lines+markers+text",
+            text=[f"{value:.1f}" for value in summary["median_outlier_score"]],
+            textposition="top center",
+            line=dict(color="#1D4ED8", width=3),
+            marker=dict(size=10, color="#00A6FF", line=dict(color="#1D4ED8", width=1)),
+            customdata=summary[["outlier_count", "median_views_per_day"]].to_numpy(),
+            hovertemplate=(
+                "<b>%{x}</b><br>"
+                "Median Outlier Score: %{y:.1f}<br>"
+                "Videos In Scan: %{customdata[0]}<br>"
+                "Median Views / Day: %{customdata[1]:,.0f}<extra></extra>"
+            ),
+            yaxis="y2",
+        )
+    )
+    fig.update_layout(
+        title="Outlier Score By Publish Age",
+        xaxis_title="How Old The Video Is",
+        yaxis=dict(title="Videos In Scan"),
+        yaxis2=dict(
+            title="Median Outlier Score",
+            overlaying="y",
+            side="right",
+            range=[0, max(100.0, float(summary["median_outlier_score"].max()) * 1.2 if not summary.empty else 100.0)],
+            showgrid=False,
+        ),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0.0),
     )
     return _style_chart(fig)
 
@@ -1896,10 +1970,12 @@ def render() -> None:
                 "Breakout map",
                 formula_lines=[
                     "Each point = one video in the filtered scan results.",
-                    "Axes encode **outlier score**, **views/day**, and **channel size** (log-scale where noted on the chart).",
+                    "X-axis = **channel subscribers** on a log scale; Y-axis = **views per day**.",
+                    "Bubble size increases with **relative velocity**; color shows the **outlier strength tier**.",
                 ],
                 insights=[
-                    "Clusters far from the bulk are unusual vs peers — validate with title, niche, and age before copying.",
+                    "Upper-right bubbles are the clearest standout cases: larger channels with unusual daily traction.",
+                    "A small-channel bubble high above the median line can reveal breakout packaging before the niche gets crowded.",
                 ],
             )
     with chart_top[1]:
@@ -1915,14 +1991,16 @@ def render() -> None:
                 "Score by publish age",
                 formula_lines=[
                     "Buckets videos by **age_bucket** (time since publish).",
-                    "Bars summarize **outlier_score** distribution or central tendency per bucket (see axis labels).",
+                    "Red bars show **how many videos** landed in each age bucket.",
+                    "Blue line shows the **median outlier score** for that bucket, so you can compare quantity vs strength.",
                 ],
                 insights=[
-                    "Spikes on recent ages can mean trend velocity; spread across ages can mean evergreen demand.",
+                    "If the bar is tall and the blue line is high, that age bucket is both common and strong.",
+                    "If counts are high but the score line is low, the niche may be crowded without many true standouts.",
                 ],
             )
 
-    chart_bottom = st.columns(3, gap="medium")
+    chart_bottom = st.columns(2, gap="medium")
     with chart_bottom[0]:
         with st.container(border=True):
             _render_chart_shell(
@@ -1930,7 +2008,11 @@ def render() -> None:
                 "Identify which runtime buckets are overperforming in the current result set.",
             )
             duration_fig = _duration_chart(sorted_frame)
-            duration_fig.update_layout(height=320)
+            duration_fig.update_layout(
+                height=440,
+                margin=dict(l=16, r=16, t=68, b=118),
+            )
+            duration_fig.update_xaxes(tickangle=-22)
             show_plotly_chart(duration_fig)
             chart_formula_insight_expanders(
                 "Winning lengths",
@@ -1949,7 +2031,11 @@ def render() -> None:
                 "Read the packaging patterns that appear repeatedly across the strongest videos.",
             )
             title_pattern_fig = _title_pattern_chart(sorted_frame)
-            title_pattern_fig.update_layout(height=320)
+            title_pattern_fig.update_layout(
+                height=440,
+                margin=dict(l=16, r=16, t=68, b=118),
+            )
+            title_pattern_fig.update_xaxes(tickangle=-22)
             show_plotly_chart(title_pattern_fig)
             chart_formula_insight_expanders(
                 "Title structures",
@@ -1961,13 +2047,12 @@ def render() -> None:
                     "Pair with keyword chips and AI title cards to turn patterns into testable hooks.",
                 ],
             )
-    with chart_bottom[2]:
-        with st.container(border=True):
-            _render_chart_shell(
-                "Scan Quality",
-                "Use this quick read to judge how clean and actionable the surfaced cohort is before you hand it to AI.",
-            )
-            _render_scan_quality_card(sorted_frame)
+    with st.container(border=True):
+        _render_chart_shell(
+            "Scan Quality",
+            "Use this quick read to judge how clean and actionable the surfaced cohort is before you hand it to AI.",
+        )
+        _render_scan_quality_card(sorted_frame)
 
     st.markdown(
         (
