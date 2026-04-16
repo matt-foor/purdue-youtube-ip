@@ -2,6 +2,7 @@ import streamlit as st
 
 
 PAGE_OPTIONS = [
+    "Control Centre",
     "Category Analysis",
     "Channel Insights",
     "Download Hub",
