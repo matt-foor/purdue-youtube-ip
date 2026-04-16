@@ -103,7 +103,15 @@ SEARCH_STATE_KEYS = (
     "outlier_page_ai_model",
     "outlier_page_prefill_note",
 )
-YT_CHART_SCALE = ["#FF0000", "#00D4FF", "#00E676", "#FFB300", "#FF6090", "#7C4DFF"]
+OUTLIER_WARM_DISCRETE = ["#FF0033", "#FF6B5A", "#FF9F1C", "#00A6FF", "#1D4ED8", "#7CC4FF"]
+OUTLIER_WARM_CONTINUOUS = [
+    [0.0, "#FFF5F0"],
+    [0.2, "#FFCDBF"],
+    [0.42, "#FF8A7A"],
+    [0.62, "#FF0033"],
+    [0.82, "#00A6FF"],
+    [1.0, "#1D4ED8"],
+]
 
 
 def _inject_outlier_css() -> None:
@@ -1194,7 +1202,7 @@ def _breakout_scatter(result_frame: pd.DataFrame):
         size="outlier_score",
         color="age_bucket",
         hover_name="video_title",
-        color_discrete_sequence=YT_CHART_SCALE,
+        color_discrete_sequence=OUTLIER_WARM_DISCRETE,
         hover_data={
             "channel_title": True,
             "views": ":,",
@@ -1238,7 +1246,7 @@ def _age_bucket_chart(result_frame: pd.DataFrame):
             "median_outlier_score": "Median Outlier Score",
             "median_views_per_day": "Median Views Per Day",
         },
-        color_continuous_scale=YT_CHART_SCALE,
+        color_continuous_scale=OUTLIER_WARM_CONTINUOUS,
     )
     fig.update_traces(
         textposition="outside",
@@ -1267,7 +1275,7 @@ def _duration_chart(result_frame: pd.DataFrame):
             "outlier_count": "Number Of Outliers",
             "median_outlier_score": "Median Outlier Score",
         },
-        color_continuous_scale=YT_CHART_SCALE,
+        color_continuous_scale=OUTLIER_WARM_CONTINUOUS,
     )
     fig.update_traces(
         texttemplate="%{y}",
@@ -1296,7 +1304,7 @@ def _title_pattern_chart(result_frame: pd.DataFrame):
             "outlier_count": "Number Of Outliers",
             "median_outlier_score": "Median Outlier Score",
         },
-        color_continuous_scale=YT_CHART_SCALE,
+        color_continuous_scale=OUTLIER_WARM_CONTINUOUS,
     )
     fig.update_traces(
         texttemplate="%{y}",
