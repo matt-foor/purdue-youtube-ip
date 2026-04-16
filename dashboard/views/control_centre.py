@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape
 from typing import Any, Sequence, Tuple
 
 import streamlit as st
@@ -37,6 +38,45 @@ def _inject_control_centre_css() -> None:
             margin-bottom: 0.75rem;
             max-width: 920px;
         }
+        .control-centre-card-stack {
+            margin-bottom: 1.15rem;
+        }
+        .control-centre-card-panel {
+            border-radius: 18px;
+            padding: 1rem 1.05rem 0.95rem;
+            margin-bottom: 0.65rem;
+            background: linear-gradient(
+                165deg,
+                rgba(246, 251, 255, 0.96),
+                rgba(228, 240, 252, 0.9)
+            );
+            border: 1px solid rgba(0, 113, 227, 0.38);
+            box-shadow:
+                0 10px 32px rgba(0, 113, 227, 0.14),
+                inset 0 1px 0 rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .control-centre-card-panel:hover {
+            border-color: rgba(0, 113, 227, 0.55);
+            box-shadow:
+                0 14px 40px rgba(0, 113, 227, 0.18),
+                inset 0 1px 0 rgba(255, 255, 255, 1);
+        }
+        .control-centre-card-panel-title {
+            font-weight: 800;
+            font-size: 1.06rem;
+            color: #14161b;
+            margin: 0 0 0.4rem;
+            font-family: var(--app-font-display);
+        }
+        .control-centre-card-panel-desc {
+            font-size: 0.93rem;
+            color: #4e5563;
+            line-height: 1.48;
+            margin: 0;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -68,12 +108,22 @@ def render(nav_targets: Sequence[Tuple[str, str, Any, str]]) -> None:
     cols = st.columns(2, gap="medium")
     for idx, (title, description, page_obj, icon) in enumerate(nav_targets):
         with cols[idx % 2]:
-            with st.container(border=True):
-                st.markdown(f"**{title}**")
-                st.caption(description)
-                st.page_link(
-                    page=page_obj,
-                    label=f"Open {title}",
-                    icon=icon,
-                    use_container_width=True,
-                )
+            st.markdown(
+                f"""
+                <div class="control-centre-card-stack">
+                    <div class="control-centre-card-panel">
+                        <div class="control-centre-card-panel-title">{escape(title)}</div>
+                        <p class="control-centre-card-panel-desc">{escape(description)}</p>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                f"Open {title}",
+                type="primary",
+                icon=icon,
+                use_container_width=True,
+                key=f"cc_workspace_open_{idx}",
+            ):
+                st.switch_page(page_obj)
