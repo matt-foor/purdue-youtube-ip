@@ -104,11 +104,11 @@ SEARCH_STATE_KEYS = (
     "outlier_page_ai_model",
     "outlier_page_prefill_note",
 )
-OUTLIER_WARM_DISCRETE = ["#FF0033", "#FF6B5A", "#FF9F1C", "#00A6FF", "#1D4ED8", "#7CC4FF"]
+OUTLIER_WARM_DISCRETE = ["#FF0033", "#FF6B5A", "#FF9F1C", "#00A6FF", "#1D4ED8", "#5EA8F5"]
 OUTLIER_WARM_CONTINUOUS = [
-    [0.0, "#FFF5F0"],
-    [0.2, "#FFCDBF"],
-    [0.42, "#FF8A7A"],
+    [0.0, "#EBC5B8"],
+    [0.18, "#F0A893"],
+    [0.4, "#FF7E6B"],
     [0.62, "#FF0033"],
     [0.82, "#00A6FF"],
     [1.0, "#1D4ED8"],
@@ -1288,7 +1288,7 @@ def _age_bucket_chart(result_frame: pd.DataFrame):
             x=summary["age_bucket"],
             y=summary["outlier_count"],
             name="Videos In Scan",
-            marker=dict(color="rgba(230, 0, 18, 0.68)", line=dict(color="#E60012", width=1)),
+            marker=dict(color="rgba(230, 0, 18, 0.78)", line=dict(color="#C60010", width=1.2)),
             text=summary["outlier_count"].astype(int),
             textposition="outside",
             customdata=summary[["median_outlier_score", "median_views_per_day"]].to_numpy(),
