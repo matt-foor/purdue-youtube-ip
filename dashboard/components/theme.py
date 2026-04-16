@@ -456,6 +456,7 @@ section[data-testid="stMain"] > div {
     font-weight: 900;
     letter-spacing: -0.018em;
     line-height: 1.1;
+    text-align: center;
     background: linear-gradient(180deg, #fdfdff 0%, #d3d9e4 36%, #6f7786 62%, #1f242c 100%);
     -webkit-background-clip: text;
     background-clip: text;
@@ -514,6 +515,7 @@ section[data-testid="stMain"] > div {
     line-height: 1.12;
     color: #14161b;
     text-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+    text-align: center;
 }
 
 .feature-description {
@@ -523,6 +525,14 @@ section[data-testid="stMain"] > div {
     line-height: 1.55;
     color: var(--apple-gray);
     font-weight: 400;
+    text-align: center;
+}
+
+/* Streamlit markdown wrapper can reset paragraph alignment — keep glass hero symmetric */
+div[data-testid="stMarkdownContainer"] .glass-page-hero .product-eyebrow,
+div[data-testid="stMarkdownContainer"] .glass-page-hero .feature-headline,
+div[data-testid="stMarkdownContainer"] .glass-page-hero .feature-description {
+    text-align: center !important;
 }
 
 .feature-hero-tags {
@@ -1067,8 +1077,8 @@ div[data-testid="stMarkdownContainer"] h3 { color: var(--apple-black); font-weig
     to { opacity: 1; transform: translateY(0); }
 }
 
-.app-hero-kicker { color: var(--apple-blue); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
-.app-hero-blurb { color: var(--apple-gray); font-size: 14px; line-height: 1.6; max-width: 820px; }
+.app-hero-kicker { color: var(--apple-blue); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; text-align: center; }
+.app-hero-blurb { color: var(--apple-gray); font-size: 14px; line-height: 1.6; max-width: 820px; margin: 0 auto; text-align: center; }
 
 /* --- Global light-enforcement: remove remaining dark popup/control states --- */
 [data-baseweb="popover"],

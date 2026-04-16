@@ -177,6 +177,7 @@ def _inject_outlier_css() -> None:
             font-size: 16px;
             line-height: 1.65;
             color: #B0B0B0;
+            text-align: center;
         }
         .outlier-trust-row {
             display: flex;
