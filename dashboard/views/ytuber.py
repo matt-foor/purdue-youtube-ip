@@ -2967,6 +2967,13 @@ def _render_content_planner(channel_df: pd.DataFrame) -> None:
         ordered=True,
     )
     heatmap_source = heatmap_source.sort_values(["publish_day", "publish_hour"])
+    heat_palette = [
+        [0.0, "rgba(255, 245, 240, 1)"],
+        [0.35, "#FF8A7A"],
+        [0.6, "#FF0033"],
+        [0.82, "#00A6FF"],
+        [1.0, "#1D4ED8"],
+    ]
 
     heat_cols = st.columns(2)
     with heat_cols[0]:
@@ -2976,6 +2983,7 @@ def _render_content_planner(channel_df: pd.DataFrame) -> None:
             y="publish_day",
             z="avg_views",
             title="Day x Hour Average Views",
+            colorscale=heat_palette,
         )
         show_plotly_chart(heat_views)
         chart_formula_insight_expanders(
@@ -2994,6 +3002,7 @@ def _render_content_planner(channel_df: pd.DataFrame) -> None:
             y="publish_day",
             z="videos",
             title="Day x Hour Upload Density",
+            colorscale=heat_palette,
         )
         show_plotly_chart(heat_uploads)
         chart_formula_insight_expanders(
