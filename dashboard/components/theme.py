@@ -704,7 +704,14 @@ div[data-testid="stMarkdownContainer"] .glass-page-hero p {
 }
 
 button[kind="primary"],
-.stButton > button[kind="primary"] {
+button[data-testid="baseButton-primary"],
+button[data-testid="stBaseButton-primary"],
+.stButton > button[kind="primary"],
+.stFormSubmitButton > button[kind="primary"],
+.stButton > button[data-testid="baseButton-primary"],
+.stFormSubmitButton > button[data-testid="baseButton-primary"],
+.stButton > button[data-testid="stBaseButton-primary"],
+.stFormSubmitButton > button[data-testid="stBaseButton-primary"] {
     background: linear-gradient(165deg, rgba(246, 251, 255, 0.97), rgba(224, 237, 252, 0.95)) !important;
     color: #0b4f9e !important;
     border: 1px solid rgba(0, 113, 227, 0.34) !important;
@@ -715,7 +722,13 @@ button[kind="primary"],
 
 .stButton > button:not([kind="primary"]),
 button[kind="secondary"],
-.stDownloadButton > button {
+button[data-testid="baseButton-secondary"],
+button[data-testid="stBaseButton-secondary"],
+.stDownloadButton > button,
+.stButton > button[data-testid="baseButton-secondary"],
+.stFormSubmitButton > button[data-testid="baseButton-secondary"],
+.stButton > button[data-testid="stBaseButton-secondary"],
+.stFormSubmitButton > button[data-testid="stBaseButton-secondary"] {
     background: linear-gradient(165deg, rgba(255, 255, 255, 0.98), rgba(239, 246, 255, 0.95)) !important;
     color: #154f93 !important;
     border: 1px solid rgba(0, 113, 227, 0.24) !important;
@@ -725,7 +738,13 @@ button[kind="secondary"],
 }
 
 .stButton > button:not([kind="primary"]):hover,
-button[kind="secondary"]:hover {
+button[kind="secondary"]:hover,
+button[data-testid="baseButton-secondary"]:hover,
+button[data-testid="stBaseButton-secondary"]:hover,
+.stButton > button[data-testid="baseButton-secondary"]:hover,
+.stFormSubmitButton > button[data-testid="baseButton-secondary"]:hover,
+.stButton > button[data-testid="stBaseButton-secondary"]:hover,
+.stFormSubmitButton > button[data-testid="stBaseButton-secondary"]:hover {
     border-color: rgba(0, 113, 227, 0.38) !important;
     transform: translateY(-1px) !important;
     box-shadow:
@@ -735,7 +754,14 @@ button[kind="secondary"]:hover {
 }
 
 button[kind="primary"]:hover,
-.stButton > button[kind="primary"]:hover {
+button[data-testid="baseButton-primary"]:hover,
+button[data-testid="stBaseButton-primary"]:hover,
+.stButton > button[kind="primary"]:hover,
+.stFormSubmitButton > button[kind="primary"]:hover,
+.stButton > button[data-testid="baseButton-primary"]:hover,
+.stFormSubmitButton > button[data-testid="baseButton-primary"]:hover,
+.stButton > button[data-testid="stBaseButton-primary"]:hover,
+.stFormSubmitButton > button[data-testid="stBaseButton-primary"]:hover {
     border-color: rgba(0, 113, 227, 0.46) !important;
     transform: translateY(-1px) !important;
     box-shadow:
