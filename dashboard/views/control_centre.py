@@ -41,15 +41,19 @@ def _inject_control_centre_css() -> None:
             margin-bottom: 0.75rem;
             max-width: 920px;
         }
-        /* Compact workspace row: columns shrink to card width, centered (no 50% empty gutters). */
-        section[data-testid="stMain"] [data-testid="stHorizontalBlock"]:has([data-testid="stVerticalBlockBorderWrapper"]) {
+        /*
+         * Scope layout fixes by :has(.cc-feature-card-title) — not by section[data-testid="stMain"].
+         * Streamlit 1.40+ often omits stMain as an ancestor for column/border blocks, so stMain-scoped
+         * rules silently never match on Cloud (cards stay 50% width, buttons stay full-width).
+         */
+        [data-testid="stHorizontalBlock"]:has(.cc-feature-card-title) {
             justify-content: center !important;
             align-items: flex-start !important;
             flex-wrap: wrap !important;
             gap: 1.25rem !important;
             width: 100% !important;
         }
-        section[data-testid="stMain"] [data-testid="stHorizontalBlock"]:has([data-testid="stVerticalBlockBorderWrapper"]) [data-testid="column"] {
+        [data-testid="stHorizontalBlock"]:has(.cc-feature-card-title) [data-testid="column"] {
             flex: 0 1 auto !important;
             width: auto !important;
             min-width: 0 !important;
@@ -58,8 +62,8 @@ def _inject_control_centre_css() -> None:
             flex-direction: column !important;
             align-items: center !important;
         }
-        /* Uniform glass cards: only this page injects this stylesheet (Control Centre). */
-        section[data-testid="stMain"] [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"] {
+        /* Uniform glass cards — only blocks that contain Control Centre card titles. */
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) {
             margin-bottom: 0.9rem !important;
             width: fit-content !important;
             max-width: min(100%, 380px) !important;
@@ -86,27 +90,40 @@ def _inject_control_centre_css() -> None:
             -webkit-backdrop-filter: blur(14px);
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
-        section[data-testid="stMain"] [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"]:hover {
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title):hover {
             border-color: rgba(0, 113, 227, 0.55) !important;
             box-shadow:
                 0 14px 40px rgba(0, 113, 227, 0.18),
                 inset 0 1px 0 rgba(255, 255, 255, 1) !important;
         }
-        section[data-testid="stMain"] [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"] > div {
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) > div {
             flex: 1 1 auto !important;
             display: flex !important;
             flex-direction: column !important;
             min-height: 0 !important;
         }
-        section[data-testid="stMain"] [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] {
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) [data-testid="stVerticalBlock"] {
             flex: 1 1 auto !important;
             display: flex !important;
             flex-direction: column !important;
             gap: 0.35rem !important;
         }
         /* Pin primary action to bottom of the card */
-        section[data-testid="stMain"] [data-testid="column"] [data-testid="stVerticalBlockBorderWrapper"] [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:last-child {
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) [data-testid="stVerticalBlock"] > div[data-testid="stElementContainer"]:last-child {
             margin-top: auto !important;
+        }
+        /* Streamlit wraps buttons in a full-width flex row; force content-sized CTA. */
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) div[data-testid="stElementContainer"]:has(.stButton) {
+            width: fit-content !important;
+            max-width: 100% !important;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) .stButton {
+            width: fit-content !important;
+            max-width: 100% !important;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.cc-feature-card-title) .stButton > button {
+            width: auto !important;
+            min-width: unset !important;
         }
         .cc-feature-card-title {
             font-family: var(--app-font-display);
