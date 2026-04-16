@@ -599,13 +599,26 @@ def _inject_ytuber_css() -> None:
         /* Light shell — Ytuber: dark ink on mesh (overrides dark-theme rules above) */
         .ytuber-title,
         .ytuber-command-title,
-        .ytuber-banner-title { color: #1d1d1f !important; }
+        .ytuber-banner-title { color: #c00011 !important; }
         .ytuber-subtitle,
         .ytuber-command-subtitle,
         .ytuber-toolbar-note,
         .ytuber-empty-copy,
         .ytuber-search-meta { color: #424245 !important; }
         .ytuber-kicker { color: #b3000c !important; }
+        .ytuber-banner {
+            background: linear-gradient(165deg, rgba(255, 255, 255, 0.98), rgba(235, 243, 252, 0.94)) !important;
+            border: 1px solid rgba(0, 113, 227, 0.2) !important;
+            border-left: 4px solid #e60012 !important;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.98),
+                0 10px 26px rgba(0, 113, 227, 0.1) !important;
+        }
+        .ytuber-banner-meta {
+            color: #006e62 !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.01em !important;
+        }
         .ytuber-footer-card {
             background: rgba(255, 255, 255, 0.96) !important;
             border: 1px solid rgba(0, 0, 0, 0.1) !important;
