@@ -10,6 +10,7 @@ import requests
 import streamlit as st
 
 from dashboard.components.visualizations import (
+    format_compact_int,
     plotly_bar_chart,
     plotly_line_chart,
     show_plotly_chart,
@@ -309,6 +310,12 @@ def _inject_channel_insights_css() -> None:
         .ci-kpi-value { color: #1d1d1f !important; }
         .ci-kpi-delta-positive { color: #138a4b !important; }
         .ci-kpi-delta-negative { color: #b42318 !important; }
+        .ci-source-pill {
+            background: rgba(0, 113, 227, 0.12) !important;
+            border: 1px solid rgba(0, 113, 227, 0.32) !important;
+            color: #1d1d1f !important;
+            font-weight: 700 !important;
+        }
         .ci-empty {
             border: 1px dashed rgba(0, 0, 0, 0.15) !important;
             background: rgba(255, 255, 255, 0.8) !important;
@@ -351,6 +358,39 @@ def _inject_channel_insights_css() -> None:
             background: linear-gradient(165deg, #fffbe7, #ffefc6) !important;
             border-color: rgba(230, 0, 18, 0.55) !important;
         }
+        /* Glass primary / secondary actions (Channel Insights only — this CSS is injected on this page) */
+        button[data-testid="baseButton-primary"] {
+            font-weight: 700 !important;
+            background: linear-gradient(180deg, rgba(232, 248, 255, 0.98), rgba(200, 230, 255, 0.88)) !important;
+            color: #0a2540 !important;
+            border: 1px solid rgba(0, 113, 227, 0.38) !important;
+            box-shadow: 0 4px 18px rgba(0, 113, 227, 0.14) !important;
+        }
+        button[data-testid="baseButton-primary"]:hover {
+            background: linear-gradient(180deg, rgba(210, 240, 255, 1), rgba(175, 220, 255, 0.92)) !important;
+            border-color: rgba(0, 113, 227, 0.55) !important;
+            color: #061a2e !important;
+        }
+        button[data-testid="baseButton-secondary"] {
+            font-weight: 700 !important;
+            background: rgba(255, 255, 255, 0.72) !important;
+            color: #0a2540 !important;
+            border: 1px solid rgba(0, 113, 227, 0.3) !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06) !important;
+        }
+        button[data-testid="baseButton-secondary"]:hover {
+            background: rgba(240, 248, 255, 0.95) !important;
+            border-color: rgba(0, 113, 227, 0.45) !important;
+        }
+        .ci-kpi-delta-hint {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: #86868b !important;
+            margin-bottom: 0.2rem;
+            line-height: 1.35;
+        }
+        .ci-kpi-value[title] { cursor: help; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -665,31 +705,48 @@ def _formats_prompt(payload: Dict[str, Any]) -> str:
 
 
 def _render_summary_kpi_cards(summary: Dict[str, Any], deltas: Dict[str, Any]) -> None:
+    mvpd = int(round(float(summary.get("median_views_per_day", 0) or 0)))
+    mvp_c, mvp_full = format_compact_int(mvpd)
+    roc = int(round(float(summary.get("recent_outlier_count", 0) or 0)))
+    roc_c, roc_full = format_compact_int(roc)
+    gap_days = float(summary.get("avg_upload_gap_days", 0) or 0)
+
     cards = [
         {
-            "label": "Upload Cadence",
-            "value": f"{summary.get('avg_upload_gap_days', 0):.1f} Days",
+            "label": "Upload cadence",
+            "value_html": f'<div class="ci-kpi-value">{escape(f"{gap_days:.1f} days")}</div>',
             "delta": _history_delta_text(deltas.get("upload_gap_delta", 0), "d") if deltas else None,
+            "delta_hint": "Change in avg. days between uploads vs your last snapshot:",
         },
         {
-            "label": "Recent Outliers",
-            "value": _format_int(summary.get("recent_outlier_count", 0)),
+            "label": "Recent outliers",
+            "value_html": (
+                f'<div class="ci-kpi-value" title="{escape(roc_full + " videos flagged as strong outliers")}">'
+                f"{escape(roc_c)}</div>"
+            ),
             "delta": _history_delta_text(deltas.get("outlier_count_delta", 0)) if deltas else None,
+            "delta_hint": "Change in outlier count vs your last snapshot:",
         },
         {
-            "label": "Strongest Theme",
-            "value": _compact_topic_label(str(summary.get("strongest_theme", "N/A"))),
+            "label": "Strongest theme",
+            "value_html": f'<div class="ci-kpi-value">{escape(_compact_topic_label(str(summary.get("strongest_theme", "N/A"))))}</div>',
             "delta": None,
+            "delta_hint": "",
         },
         {
-            "label": "Weakest Theme",
-            "value": _compact_topic_label(str(summary.get("weakest_theme", "N/A"))),
+            "label": "Weakest theme",
+            "value_html": f'<div class="ci-kpi-value">{escape(_compact_topic_label(str(summary.get("weakest_theme", "N/A"))))}</div>',
             "delta": None,
+            "delta_hint": "",
         },
         {
-            "label": "Median Views / Day",
-            "value": _format_int(summary.get("median_views_per_day", 0)),
+            "label": "Median views / day",
+            "value_html": (
+                f'<div class="ci-kpi-value" title="{escape(mvp_full + " views per day (median across recent window)")}">'
+                f"{escape(mvp_c)}</div>"
+            ),
             "delta": _history_delta_text(deltas.get("median_views_per_day_delta", 0)) if deltas else None,
+            "delta_hint": "Change in median views/day vs your last snapshot:",
         },
     ]
 
@@ -702,16 +759,30 @@ def _render_summary_kpi_cards(summary: Dict[str, Any], deltas: Dict[str, Any]) -
                 delta_class += " ci-kpi-delta-positive"
             elif str(delta_text).startswith("-"):
                 delta_class += " ci-kpi-delta-negative"
-        # No leading indentation on HTML lines — Streamlit Markdown treats 4+ leading spaces as a code block,
-        # which would show raw <div> tags instead of rendering KPI cards.
+        hint = str(card.get("delta_hint") or "")
+        if hint and delta_text:
+            delta_block = (
+                f'<div class="{delta_class}">'
+                f'<span class="ci-kpi-delta-hint">{escape(hint)}</span>'
+                f"{escape(str(delta_text))}</div>"
+            )
+        elif hint and not delta_text:
+            delta_block = f'<div class="{delta_class}"><span class="ci-kpi-delta-hint">{escape(hint)}</span>—</div>'
+        elif delta_text:
+            delta_block = f'<div class="{delta_class}">{escape(str(delta_text))}</div>'
+        else:
+            delta_block = '<div class="ci-kpi-delta"></div>'
         html_cards.append(
             f'<div class="ci-kpi-card">'
             f'<div class="ci-kpi-label">{escape(str(card["label"]))}</div>'
-            f'<div class="ci-kpi-value">{escape(str(card["value"]))}</div>'
-            f'<div class="{delta_class}">{escape(str(delta_text or ""))}</div>'
-            f"</div>"
+            f'{card["value_html"]}'
+            f"{delta_block}</div>"
         )
 
+    st.caption(
+        "Large numbers use **K / M / B**; hover a value for the exact figure. "
+        "Deltas appear when a **previous snapshot** exists to compare against."
+    )
     st.markdown(
         f'<div class="ci-kpi-grid">{"".join(html_cards)}</div>',
         unsafe_allow_html=True,
@@ -749,111 +820,103 @@ def _artifact_status_label(state: str) -> str:
 
 def _render_connect_card(connected_channels: list[dict[str, Any]]) -> None:
     artifact_status = get_bertopic_artifact_status()
-    config_cols = st.columns([1.45, 1], gap="large")
-    with config_cols[0]:
-        st.markdown(
-            '<div class="ci-card">'
-            '<div class="ci-card-title">Connect A Public Channel</div>'
-            '<div class="ci-card-copy">'
-            "Add any public channel by URL, handle, or channel ID. This workflow is intentionally public-only "
-            "and stores manual snapshots each time you refresh."
-            "</div></div>",
-            unsafe_allow_html=True,
+    st.markdown(
+        '<div class="ci-card">'
+        '<div class="ci-card-title">Connect a public channel</div>'
+        '<div class="ci-card-copy">'
+        "Add a URL, @handle, or channel ID. Optionally force a live API refresh, then choose how topics are labeled "
+        "before you tap <strong>Start analysis</strong>. Public-only; each run saves a snapshot."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    with st.form("channel_insights_connect_form"):
+        channel_input = st.text_input(
+            "Channel URL, handle, or channel ID",
+            key="channel_insights_input",
+            placeholder="https://www.youtube.com/@veritasium or @veritasium",
         )
-        with st.form("channel_insights_connect_form"):
-            channel_input = st.text_input(
-                "Channel URL, Handle, Or Channel ID",
-                key="channel_insights_input",
-                placeholder="https://www.youtube.com/@veritasium or @veritasium",
-            )
-            action_cols = st.columns([1.35, 1], gap="small")
-            with action_cols[0]:
-                connect_clicked = st.form_submit_button("Add Or Analyze Channel", type="primary", use_container_width=True)
-            with action_cols[1]:
-                force_refresh = st.toggle(
-                    "Force Live Refresh",
-                    key="channel_insights_force_refresh",
-                    help="Bypass dataset-backed rows and pull public channel data from the YouTube API again.",
-                )
-
-        if connect_clicked:
-            if not channel_input.strip():
-                st.session_state["channel_insights_error"] = "Enter a public channel URL, handle, or channel ID first."
-            else:
-                with st.spinner("Analyzing the channel and storing a fresh snapshot..."):
-                    try:
-                        payload = refresh_channel_insights(
-                            channel_input.strip(),
-                            force_refresh=force_refresh,
-                            topic_mode=st.session_state.get("channel_insights_topic_mode", TOPIC_MODE_HEURISTIC),
-                        )
-                    except Exception as exc:
-                        st.session_state["channel_insights_error"] = str(exc)
-                    else:
-                        st.session_state["channel_insights_selected_channel"] = payload["channel"]["channel_id"]
-                        st.session_state.pop("channel_insights_error", None)
-                        st.rerun()
-
-    with config_cols[1]:
-        tracked_options = connected_channels
-        selected_channel_id = st.session_state.get("channel_insights_selected_channel", "")
-        if tracked_options and selected_channel_id not in {row["channel_id"] for row in tracked_options}:
-            selected_channel_id = tracked_options[0]["channel_id"]
-            st.session_state["channel_insights_selected_channel"] = selected_channel_id
-
-        if tracked_options:
-            choice = st.selectbox(
-                "Tracked Channels",
-                tracked_options,
-                index=next((i for i, row in enumerate(tracked_options) if row["channel_id"] == selected_channel_id), 0),
-                format_func=lambda row: row["channel_title"],
-            )
-            st.session_state["channel_insights_selected_channel"] = choice["channel_id"]
-        else:
-            st.markdown("<div class='ci-empty'>No tracked channels yet. Add one on the left to unlock persisted snapshots and theme history.</div>", unsafe_allow_html=True)
-
-        st.markdown(
-            f'<div class="ci-card" style="margin-top:0.85rem;">'
-            '<div class="ci-card-title">Current Workspace</div>'
-            '<div class="ci-summary-grid">'
-            f'<div class="ci-summary-item"><div class="ci-summary-label">Tracked Channels</div>'
-            f'<div class="ci-summary-value">{len(connected_channels)}</div></div>'
-            '<div class="ci-summary-item"><div class="ci-summary-label">Refresh Mode</div>'
-            '<div class="ci-summary-value">Manual Snapshots</div></div>'
-            '<div class="ci-summary-item"><div class="ci-summary-label">Analytics Scope</div>'
-            '<div class="ci-summary-value">Public Only</div></div>'
-            '<div class="ci-summary-item"><div class="ci-summary-label">Topic Default</div>'
-            '<div class="ci-summary-value">Heuristic</div></div>'
-            "</div>"
-            '<div class="ci-note" style="margin-top:0.85rem;">'
-            "Channel Insights stays public-only in this lighter V5 build. It still supports snapshot history, "
-            "topic trends, outliers, and next-topic recommendations.</div></div>",
-            unsafe_allow_html=True,
-        )
-
-        st.markdown(
-            '<div class="ci-card" style="margin-top:0.85rem;">'
-            '<div class="ci-card-title">Experimental Topic Model</div>'
-            '<div class="ci-card-copy">'
-            "Keep the default heuristic topic flow for the safest path, or switch to the optional BERTopic beta "
-            "when artifact settings are configured.</div></div>",
-            unsafe_allow_html=True,
+        force_refresh = st.toggle(
+            "Force live refresh",
+            key="channel_insights_force_refresh",
+            help="Re-fetch from the YouTube API instead of using the latest cached dataset row.",
         )
         st.selectbox(
-            "Topic Analysis Mode",
+            "Topic analysis mode",
             options=[TOPIC_MODE_HEURISTIC, TOPIC_MODE_BERTOPIC_OPTIONAL],
             key="channel_insights_topic_mode",
             format_func=_topic_mode_label,
+            help="Pick before starting: heuristic is fastest; model-backed (beta) uses BERTopic when the bundle is ready.",
         )
-        st.caption(f"Artifact Status: {_artifact_status_label(artifact_status.state)}")
-        if artifact_status.state == "ready":
-            st.success(artifact_status.message or "BERTopic bundle is ready.")
-        elif artifact_status.state == "download_required":
-            st.info(artifact_status.message or "The BERTopic bundle will download when you run the beta mode.")
-        elif artifact_status.state == "invalid":
-            st.warning(artifact_status.failure_reason or artifact_status.message or "BERTopic beta mode is currently unavailable.")
+        connect_clicked = st.form_submit_button("Start analysis", type="primary", use_container_width=True)
+
+    st.caption(f"Artifact status: {_artifact_status_label(artifact_status.state)}")
+    if artifact_status.state == "ready":
+        st.success(artifact_status.message or "BERTopic bundle is ready.")
+    elif artifact_status.state == "download_required":
+        st.info(artifact_status.message or "The BERTopic bundle will download when you run the beta mode.")
+    elif artifact_status.state == "invalid":
+        st.warning(
+            artifact_status.failure_reason
+            or artifact_status.message
+            or "BERTopic beta mode is currently unavailable."
+        )
+    else:
+        st.caption(artifact_status.message or "Heuristic mode is the default until artifact configuration is complete.")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if connect_clicked:
+        if not channel_input.strip():
+            st.session_state["channel_insights_error"] = "Enter a public channel URL, handle, or channel ID first."
         else:
-            st.caption(artifact_status.message or "The heuristic mode remains the default until artifact configuration is complete.")
+            with st.spinner("Analyzing the channel and storing a fresh snapshot..."):
+                try:
+                    payload = refresh_channel_insights(
+                        channel_input.strip(),
+                        force_refresh=force_refresh,
+                        topic_mode=st.session_state.get("channel_insights_topic_mode", TOPIC_MODE_HEURISTIC),
+                    )
+                except Exception as exc:
+                    st.session_state["channel_insights_error"] = str(exc)
+                else:
+                    st.session_state["channel_insights_selected_channel"] = payload["channel"]["channel_id"]
+                    st.session_state.pop("channel_insights_error", None)
+                    st.rerun()
+
+    tracked_options = connected_channels
+    selected_channel_id = st.session_state.get("channel_insights_selected_channel", "")
+    if tracked_options and selected_channel_id not in {row["channel_id"] for row in tracked_options}:
+        selected_channel_id = tracked_options[0]["channel_id"]
+        st.session_state["channel_insights_selected_channel"] = selected_channel_id
+
+    st.markdown('<div class="ci-card" style="margin-top:1rem;"><div class="ci-card-title">Workspace</div>', unsafe_allow_html=True)
+    if tracked_options:
+        choice = st.selectbox(
+            "Tracked channel",
+            tracked_options,
+            index=next((i for i, row in enumerate(tracked_options) if row["channel_id"] == selected_channel_id), 0),
+            format_func=lambda row: row["channel_title"],
+            help="Switch which stored channel loads in the tabs below.",
+        )
+        st.session_state["channel_insights_selected_channel"] = choice["channel_id"]
+    else:
+        st.markdown(
+            "<div class='ci-empty'>No tracked channels yet. Run <strong>Start analysis</strong> above to add one.</div>",
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        f'<div class="ci-summary-grid" style="margin-top:0.75rem;">'
+        f'<div class="ci-summary-item"><div class="ci-summary-label">Tracked count</div>'
+        f'<div class="ci-summary-value">{len(connected_channels)}</div></div>'
+        '<div class="ci-summary-item"><div class="ci-summary-label">Snapshots</div>'
+        '<div class="ci-summary-value">Manual refresh</div></div>'
+        '<div class="ci-summary-item"><div class="ci-summary-label">Scope</div>'
+        '<div class="ci-summary-value">Public only</div></div>'
+        "</div>"
+        '<div class="ci-note" style="margin-top:0.75rem;">'
+        "Topic trends, outliers, and recommendations update when you refresh a channel snapshot.</div></div>",
+        unsafe_allow_html=True,
+    )
 
 
 def _render_summary_action_row(payload: Dict[str, Any]) -> None:
@@ -864,18 +927,21 @@ def _render_summary_action_row(payload: Dict[str, Any]) -> None:
     topic_model_message = summary.get("topic_model_message", "")
     topic_model_failure_reason = summary.get("topic_model_failure_reason", "")
     artifact_status = payload.get("topic_artifact_status") or get_bertopic_artifact_status()
-    action_cols = st.columns([2.2, 1.1, 1], gap="large")
-    with action_cols[0]:
-        st.markdown(
-            f'<div class="ci-card">'
-            f'<div class="ci-source-pill">{escape(payload["source"].replace("_", " ").title())}</div>'
-            f'<div class="ci-card-title" style="margin-top:0.65rem;">{escape(channel["channel_title"])}</div>'
-            f'<div class="ci-card-copy">Latest Snapshot: {escape(payload["snapshot_at"])}<br/>'
-            f"Topic Mode Used: {escape(_topic_mode_label(topic_mode_used))}</div></div>",
-            unsafe_allow_html=True,
-        )
-    with action_cols[1]:
-        if st.button("Refresh Analysis", type="primary", use_container_width=True):
+    art_state = _artifact_status_label(getattr(artifact_status, "state", "disabled"))
+    bundle_ver = str(summary.get("topic_model_bundle_version", "") or "Not loaded")
+
+    st.markdown(
+        f'<div class="ci-card">'
+        f'<div class="ci-source-pill">{escape(payload["source"].replace("_", " ").title())}</div>'
+        f'<div class="ci-card-title" style="margin-top:0.65rem;">{escape(channel["channel_title"])}</div>'
+        f'<div class="ci-card-copy">Latest snapshot: {escape(payload["snapshot_at"])}<br/>'
+        f"Topic mode applied: {escape(_topic_mode_label(topic_mode_used))}</div></div>",
+        unsafe_allow_html=True,
+    )
+
+    action_row = st.columns(2, gap="small")
+    with action_row[0]:
+        if st.button("Refresh snapshot", type="secondary", use_container_width=True):
             with st.spinner("Refreshing channel insights and writing a new snapshot..."):
                 try:
                     fresh_payload = refresh_channel_insights(
@@ -889,26 +955,18 @@ def _render_summary_action_row(payload: Dict[str, Any]) -> None:
                     st.session_state["channel_insights_selected_channel"] = fresh_payload["channel"]["channel_id"]
                     st.session_state.pop("channel_insights_error", None)
                     st.rerun()
-    with action_cols[2]:
-        st.link_button("Open Channel", channel["canonical_url"], use_container_width=True)
+    with action_row[1]:
+        st.link_button("Open channel", channel["canonical_url"], use_container_width=True)
 
-    st.markdown(
-        f'<div class="ci-card" style="margin-top:0.75rem;">'
-        '<div class="ci-card-title">Experimental Topic Model</div>'
-        '<div class="ci-summary-grid">'
-        f'<div class="ci-summary-item"><div class="ci-summary-label">Requested Mode</div>'
-        f'<div class="ci-summary-value">{escape(_topic_mode_label(topic_mode_requested))}</div></div>'
-        f'<div class="ci-summary-item"><div class="ci-summary-label">Applied Mode</div>'
-        f'<div class="ci-summary-value">{escape(_topic_mode_label(topic_mode_used))}</div></div>'
-        f'<div class="ci-summary-item"><div class="ci-summary-label">Artifact Status</div>'
-        f'<div class="ci-summary-value">{escape(_artifact_status_label(getattr(artifact_status, "state", "disabled")))}</div></div>'
-        f'<div class="ci-summary-item"><div class="ci-summary-label">Bundle Version</div>'
-        f'<div class="ci-summary-value">{escape(str(summary.get("topic_model_bundle_version", "") or "Not Loaded"))}</div></div>'
-        "</div>"
-        f'<div class="ci-note" style="margin-top:0.85rem;">'
-        f"{escape(topic_model_message or 'The heuristic topic flow remains the fallback when BERTopic is unavailable.')}</div></div>",
-        unsafe_allow_html=True,
-    )
+    with st.expander("Topic model details (requested vs applied)", expanded=False):
+        st.markdown(
+            f"- **Requested:** {_topic_mode_label(topic_mode_requested)}  \n"
+            f"- **Applied:** {_topic_mode_label(topic_mode_used)}  \n"
+            f"- **Artifact:** {art_state}  \n"
+            f"- **Bundle:** {bundle_ver}"
+        )
+        if topic_model_message:
+            st.caption(topic_model_message)
     if topic_mode_requested == TOPIC_MODE_BERTOPIC_OPTIONAL and topic_mode_used != TOPIC_MODE_BERTOPIC_OPTIONAL:
         st.warning(topic_model_failure_reason or "BERTopic beta mode could not run for this snapshot, so the page fell back to heuristic topics.")
 
