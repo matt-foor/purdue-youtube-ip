@@ -27,6 +27,21 @@ def _cleanup_retired_session_state() -> None:
             st.session_state.pop(key, None)
 
 
+def _inject_bootstrap_light_shell() -> None:
+    """Apply minimal light background immediately to avoid dark first-paint flash."""
+    st.markdown(
+        """
+        <style>
+        html, body, [data-testid="stAppViewContainer"], section[data-testid="stMain"] {
+            background: #f5f5f7 !important;
+            color: #1d1d1f !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _page_channel_analysis() -> None:
     _render_app_shell("Channel Analysis")
     channel_analysis.render()
@@ -120,6 +135,7 @@ def run() -> None:
         initial_sidebar_state="expanded",
     )
 
+    _inject_bootstrap_light_shell()
     inject_shared_theme()
     inject_intro_animation()
     _cleanup_retired_session_state()

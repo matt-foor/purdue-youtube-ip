@@ -643,6 +643,37 @@ def _inject_ytuber_css() -> None:
             background: rgba(255, 255, 255, 0.94) !important;
             border: 1px solid rgba(0, 0, 0, 0.1) !important;
         }
+        /* Title & SEO Lab score cards — lighter glass + stronger title contrast */
+        .ytuber-score-card {
+            background: linear-gradient(165deg, rgba(255, 255, 255, 0.97), rgba(233, 242, 252, 0.93)) !important;
+            border: 1px solid rgba(0, 113, 227, 0.2) !important;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.98),
+                0 10px 26px rgba(0, 113, 227, 0.1) !important;
+        }
+        .ytuber-score-label {
+            color: #b3000c !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.09em !important;
+        }
+        .ytuber-score-value { color: #1d1d1f !important; }
+        .ytuber-score-note { color: #424245 !important; }
+        .ytuber-score-bar {
+            background: rgba(0, 113, 227, 0.16) !important;
+        }
+        .ytuber-score-pill {
+            border: 1px solid rgba(0, 113, 227, 0.28) !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85) !important;
+        }
+        .ytuber-part-card {
+            background: linear-gradient(165deg, rgba(255, 255, 255, 0.96), rgba(238, 244, 252, 0.92)) !important;
+            border: 1px solid rgba(0, 113, 227, 0.16) !important;
+        }
+        .ytuber-part-label {
+            color: #b3000c !important;
+            font-weight: 700 !important;
+        }
+        .ytuber-part-value { color: #1d1d1f !important; }
         /* Ytuber page: ensure help/info icon uses visible bulb style */
         [data-testid*="stTooltipHoverTarget"] button,
         button[aria-label*="help" i],
