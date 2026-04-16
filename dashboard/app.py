@@ -28,7 +28,7 @@ def _cleanup_retired_session_state() -> None:
 
 
 def _page_channel_analysis() -> None:
-    _render_app_shell("Channel Analysis")
+    _render_app_shell("Category Analysis")
     channel_analysis.render()
 
 
@@ -83,7 +83,7 @@ def _page_deployment() -> None:
         ### Notes
         - `dashboard/app.py` remains the main application module.
         - `streamlit_app.py` is the root-level deployment entrypoint for Streamlit Cloud.
-        - `Channel Analysis` uses the committed assets and configured AI providers already in the repo.
+        - `Category Analysis` uses the committed assets and configured AI providers already in the repo.
         - `Download Hub` combines thumbnail generation/export with public media downloads (see each tab for API and ffmpeg notes).
         - `Channel Insights` is public-only in this build and stores dated SQLite snapshots on manual refresh.
         - `Ytuber` remains available as part of the AI suite.
@@ -100,7 +100,7 @@ def _page_deployment() -> None:
 
 PAGE_CHANNEL_ANALYSIS = st.Page(
     _page_channel_analysis,
-    title="Channel Analysis",
+    title="Category Analysis",
     icon="📊",
     default=True,
 )

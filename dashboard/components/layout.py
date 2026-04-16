@@ -10,11 +10,11 @@ import streamlit as st
 
 # Badge (ALL CAPS), headline, description, optional feature tags (glass pills)
 PAGE_HERO: Dict[str, Tuple[str, str, str, Tuple[str, ...]]] = {
-    "Channel Analysis": (
-        "CHANNEL ANALYSIS",
-        "Benchmark datasets and see which channels and videos actually move the needle.",
-        "Filter committed CSVs, compare engagement across categories, and surface rankings, trends, and scatter insights—without leaving this workspace.",
-        ("CSV benchmarks", "Engagement signals", "Portfolio view"),
+    "Category Analysis": (
+        "CATEGORY ANALYSIS",
+        "Benchmark each category dataset to see which channels and videos are outperforming in that niche.",
+        "Pick a dataset category, then compare channels, engagement, trends, and rankings inside that category to find what is working before you go channel-deep in Insights.",
+        ("Category benchmarks", "Engagement signals", "Cross-channel comparison"),
     ),
     "Channel Insights": (
         "CHANNEL INSIGHTS",

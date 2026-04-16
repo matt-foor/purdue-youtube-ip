@@ -175,7 +175,7 @@ def _render_engagement_formula_block() -> None:
 
 
 def render() -> None:
-    section_header("Channel Analysis", icon="📊")
+    section_header("Category Analysis", icon="📊")
 
     categories = _available_categories()
     selected_category = st.selectbox("Dataset category", categories, index=0)

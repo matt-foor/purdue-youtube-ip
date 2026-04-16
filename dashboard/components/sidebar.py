@@ -2,7 +2,7 @@ import streamlit as st
 
 
 PAGE_OPTIONS = [
-    "Channel Analysis",
+    "Category Analysis",
     "Channel Insights",
     "Download Hub",
     "Outlier Finder",
@@ -11,6 +11,7 @@ PAGE_OPTIONS = [
 ]
 
 _LEGACY_PAGE_MAP = {
+    "Channel Analysis": "Category Analysis",
     "Recommendations": "Download Hub",
     "Thumbnails": "Download Hub",
     "Tools": "Download Hub",
