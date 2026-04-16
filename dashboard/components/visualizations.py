@@ -399,6 +399,26 @@ def styled_metric_card(
     return card
 
 
+def _compact_metric_value(value: Any) -> str:
+    """Normalize KPI values so large numeric displays use K/M/B/T."""
+    if value is None:
+        return ""
+    if isinstance(value, (int, float, np.integer, np.floating)) and not pd.isna(value):
+        return format_compact_number(float(value), precision=1)
+
+    text = str(value).strip()
+    if not text:
+        return text
+    # Compact plain numeric strings (including comma-separated thousands).
+    if re.fullmatch(r"-?\d{1,3}(?:,\d{3})*(?:\.\d+)?|-?\d+(?:\.\d+)?", text):
+        normalized = text.replace(",", "")
+        try:
+            return format_compact_number(float(normalized), precision=1)
+        except ValueError:
+            return text
+    return text
+
+
 def kpi_row(metrics: List[Dict[str, Any]]) -> None:
     """Render a row of KPI metric cards.
 
@@ -407,7 +427,7 @@ def kpi_row(metrics: List[Dict[str, Any]]) -> None:
     cards_html = "".join(
         styled_metric_card(
             m.get("label", ""),
-            str(m.get("value", "")),
+            _compact_metric_value(m.get("value", "")),
             delta=m.get("delta"),
             icon=m.get("icon"),
             color=m.get("color"),
@@ -788,12 +808,12 @@ def styled_dataframe(
         st.markdown(f"**{title}**", unsafe_allow_html=True)
 
     numeric_cols = df.select_dtypes(include=[np.number]).columns
-    numeric_formatters = {
-        col: (lambda v, p=precision: format_compact_number(v, precision=p))
-        for col in numeric_cols
-    }
+    display_df = df.copy()
+    for col in numeric_cols:
+        display_df[col] = display_df[col].map(lambda v, p=precision: format_compact_number(v, precision=p))
+
     styler = (
-        df.style.format(numeric_formatters, na_rep="")
+        display_df.style.format(na_rep="")
         .set_table_styles(
             [
                 {
@@ -823,10 +843,6 @@ def styled_dataframe(
             }
         )
     )
-    if len(numeric_cols) > 0:
-        # Subtle in-cell magnitude cue that keeps the steel-glass background light.
-        styler = styler.bar(subset=numeric_cols, color="#dbe6ff", align="left")
-
     column_config = _build_dataframe_column_config(df, precision=precision, column_help=column_help, image_columns=image_columns)
 
     try:
@@ -838,15 +854,21 @@ def styled_dataframe(
         )
     except Exception:
         # Styled DataFrames use Arrow; a broken/missing pyarrow install (common on Windows) still shows data.
-        fallback_df = df.copy()
-        for col in numeric_cols:
-            fallback_df[col] = fallback_df[col].map(lambda v, p=precision: format_compact_number(v, precision=p))
         st.dataframe(
-            fallback_df,
+            display_df,
             use_container_width=True,
             hide_index=True,
             column_config=column_config or None,
         )
+
+    if len(numeric_cols) > 0:
+        label = title or "This table"
+        with st.expander(f"{label} — exact values", expanded=False):
+            st.dataframe(
+                df,
+                use_container_width=True,
+                hide_index=True,
+            )
 
     if column_help or table_insights:
         label = title or "This table"
