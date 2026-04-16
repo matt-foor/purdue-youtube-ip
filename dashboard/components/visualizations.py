@@ -1,6 +1,7 @@
+import html
 import math
 import re
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -210,14 +211,46 @@ def show_plotly_chart(fig: go.Figure, *, config: Optional[Dict[str, Any]] = None
     st.plotly_chart(fig, use_container_width=True, config=merged)
 
 
-def graph_insight_expander(chart_title: str, body_md: str, *, for_instructions: bool = False) -> None:
-    """Collapsed help text: chart interpretation (`for_instructions=False`) or step-by-step (`True`)."""
-    if for_instructions:
+def graph_insight_expander(
+    chart_title: str,
+    body_md: str,
+    *,
+    for_instructions: bool = False,
+    for_insights: bool = False,
+) -> None:
+    """Collapsed help: chart reading, step-by-step instructions, or creator-friendly *Insights*."""
+    if for_insights:
+        label = f"Insights — {chart_title}"
+    elif for_instructions:
         label = f"Instructions — {chart_title}"
     else:
         label = f"How to read this chart — {chart_title}"
     with st.expander(label, expanded=False):
         st.markdown(body_md)
+
+
+def format_compact_int(n: Union[int, float]) -> Tuple[str, str]:
+    """Return (compact display, full exact string for tooltips). Uses K / M / B / T."""
+    n0 = int(round(float(n)))
+    full = f"{n0:,}"
+    if abs(n0) < 1000:
+        return full, full
+    sign = "-" if n0 < 0 else ""
+    x = abs(n0)
+    if x >= 1_000_000_000_000:
+        scaled = x / 1_000_000_000_000
+        suffix = "T"
+    elif x >= 1_000_000_000:
+        scaled = x / 1_000_000_000
+        suffix = "B"
+    elif x >= 1_000_000:
+        scaled = x / 1_000_000
+        suffix = "M"
+    else:
+        scaled = x / 1_000
+        suffix = "K"
+    compact = f"{sign}{scaled:.2f}".rstrip("0").rstrip(".") + suffix
+    return compact, full
 
 
 def styled_metric_card(
@@ -226,6 +259,7 @@ def styled_metric_card(
     delta: Optional[str] = None,
     icon: Optional[str] = None,
     color: Optional[str] = None,
+    value_tooltip: Optional[str] = None,
 ) -> str:
     """Return HTML for a single glassmorphism metric card.
 
@@ -240,18 +274,21 @@ def styled_metric_card(
         elif delta.strip().startswith(("-", "▼")):
             delta_class = "negative"
     delta_html = (
-        f'<div class="metric-delta {delta_class}">{delta}</div>' if delta else ""
+        f'<div class="metric-delta {delta_class}">{html.escape(delta)}</div>' if delta else ""
     )
-    html = (
+    title_attr = ""
+    if value_tooltip:
+        title_attr = f' title="{html.escape(value_tooltip, quote=True)}"'
+    card = (
         f'<div class="metric-card">'
-        f'<div class="metric-label">{label}</div>'
-        f'<div class="metric-value" style="{color_style}">'
-        f'{value}'
+        f'<div class="metric-label">{html.escape(label)}</div>'
+        f'<div class="metric-value metric-value--kpi" style="{color_style}"{title_attr}>'
+        f'{html.escape(value)}'
         f'</div>'
         f'{delta_html}'
         f'</div>'
     )
-    return html
+    return card
 
 
 def kpi_row(metrics: List[Dict[str, Any]]) -> None:
@@ -266,6 +303,7 @@ def kpi_row(metrics: List[Dict[str, Any]]) -> None:
             delta=m.get("delta"),
             icon=m.get("icon"),
             color=m.get("color"),
+            value_tooltip=m.get("value_tooltip"),
         )
         for m in metrics
     )

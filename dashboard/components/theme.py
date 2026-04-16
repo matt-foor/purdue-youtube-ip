@@ -619,6 +619,10 @@ section[data-testid="stMain"] > div {
     color: var(--apple-black);
 }
 
+.metric-value--kpi[title] {
+    cursor: help;
+}
+
 .metric-delta.positive { color: #0a7f2e; }
 .metric-delta.negative { color: #c40018; }
 
